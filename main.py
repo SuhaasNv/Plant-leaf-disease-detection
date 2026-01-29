@@ -1,56 +1,50 @@
+import io
 import os
-import requests
-import tensorflow as tf
-import numpy as np
-import streamlit as st
+from typing import Optional
 
+import numpy as np  # type: ignore[import-untyped]
+import streamlit as st  # type: ignore[import-untyped]
+import tensorflow as tf  # type: ignore[import-untyped]
+from PIL import Image  # type: ignore[import-untyped]
 
+import config
 
 st.set_page_config(
     page_icon="Plant.png",
     page_title="Plant Disease Detection",
-    layout="wide",  # This ensures wide layout
-    initial_sidebar_state="expanded"  # Makes sure sidebar is expanded by default
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# Google Drive file ID and file path
-FILE_ID = "1Z8oMCp1XR3sFq2iK034RCnTj_2RbqRKN"
 MODEL_PATH = "trained_plant_disease_model.h5"
-MODEL_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
+# Inference passes raw pixels [0,255]; the saved model must include Rescaling(1/255) as first layer.
 
-# Function to download the model if not present
-def download_model():
+
+@st.cache_resource
+def load_model():
+    """Load the model once and reuse for all predictions (avoids slow reload every time)."""
     if not os.path.exists(MODEL_PATH):
-        st.info("Downloading the model, please wait...")
-        response = requests.get(MODEL_URL, stream=True)
-        if response.status_code == 200:
-            with open(MODEL_PATH, 'wb') as file:
-                for chunk in response.iter_content(chunk_size=8192):
-                    file.write(chunk)
-            st.success("Model downloaded successfully!")
-        else:
-            st.error("Failed to download the model. Please check the URL or model file.")
-            return False
-    return True
-
-# TensorFlow Model Prediction
-def model_prediction(test_image):
-    # Ensure the model is downloaded
-    if not download_model():
         return None
+    return tf.keras.models.load_model(MODEL_PATH)
 
-    # Load the model
+
+def model_prediction(test_image) -> Optional[int]:
+    """Run model inference on an uploaded image. Returns class index or None on error."""
+    model = load_model()
+    if model is None:
+        st.error(f"Model file not found: {MODEL_PATH}. Place the trained model in this directory.")
+        return None
     try:
-        model = tf.keras.models.load_model(MODEL_PATH)
+        img_bytes = test_image.read()
+        image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        image = image.resize((128, 128))
+        input_arr = np.array(image)
+        input_arr = np.array([input_arr])
     except Exception as e:
-        st.error(f"Error loading model: {e}")
+        st.error(f"Could not load image: {e}")
         return None
-
-    image = tf.keras.preprocessing.image.load_img(test_image, target_size=(128, 128))
-    input_arr = tf.keras.preprocessing.image.img_to_array(image)
-    input_arr = np.array([input_arr])  # convert single image to batch
-    predictions = model.predict(input_arr)
-    return np.argmax(predictions)  # return index of max element
+    predictions = model.predict(input_arr, verbose=0)
+    return int(np.argmax(predictions))
 
 # Sidebar
 st.sidebar.title("Dashboard")
@@ -59,7 +53,7 @@ app_mode = st.sidebar.selectbox("Select Page", ["Home", "About", "Disease Recogn
 # Main Page
 if app_mode == "Home":
     st.header("PLANT DISEASE RECOGNITION SYSTEM")
-    image_path = "home_page.jpeg"
+    image_path = "home_page.jpeg" if os.path.exists("home_page.jpeg") else "Plant.png"
     st.image(image_path, use_container_width=True)
     st.markdown("""
     Welcome to the Plant Disease Recognition System! 🌿🔍
@@ -114,7 +108,7 @@ elif app_mode == "About":
     #### Project Team
     This project is developed by:
 
-    - **Bhaswanth Kumar Bonthala**
+    - **Vijaya Suhaas Nadukooru**
 
     Our team is dedicated to creating an efficient and accurate plant disease recognition system to help in protecting crops and ensuring a healthier harvest.
     """)
@@ -134,25 +128,21 @@ elif app_mode == "Disease Recognition":
             result_index = model_prediction(test_image)
 
             if result_index is not None:
-                # Class names for the predictions
-                class_name = [
-                    'Apple___Apple_scab', 'Apple___Black_rot', 'Apple___Cedar_apple_rust', 'Apple___healthy',
-                    'Blueberry___healthy', 'Cherry_(including_sour)___Powdery_mildew', 'Cherry_(including_sour)___healthy',
-                    'Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot', 'Corn_(maize)___Common_rust_', 
-                    'Corn_(maize)___Northern_Leaf_Blight', 'Corn_(maize)___healthy', 'Grape___Black_rot', 
-                    'Grape___Esca_(Black_Measles)', 'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)', 'Grape___healthy', 
-                    'Orange___Haunglongbing_(Citrus_greening)', 'Peach___Bacterial_spot', 'Peach___healthy', 
-                    'Pepper,_bell___Bacterial_spot', 'Pepper,_bell___healthy', 'Potato___Early_blight', 
-                    'Potato___Late_blight', 'Potato___healthy', 'Raspberry___healthy', 'Soybean___healthy', 
-                    'Squash___Powdery_mildew', 'Strawberry___Leaf_scorch', 'Strawberry___healthy', 
-                    'Tomato___Bacterial_spot', 'Tomato___Early_blight', 'Tomato___Late_blight', 'Tomato___Leaf_Mold', 
-                    'Tomato___Septoria_leaf_spot', 'Tomato___Spider_mites Two-spotted_spider_mite', 
-                    'Tomato___Target_Spot', 'Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus',
-                    'Tomato___healthy'
-                ]
-                st.success(f"Model is predicting it's a {class_name[result_index]}")
+                if 0 <= result_index < len(config.CLASS_NAMES):
+                    label = config.CLASS_NAMES[result_index]
+                    st.success(f"Model predicts: **{label}**")
+                else:
+                    st.error(f"Invalid prediction index: {result_index}")
             else:
                 st.error("Prediction failed, please check the model file.")
     
     # Add warning message
-    #st.warning("⚠️ The model is currently under production and may make mistakes. Please use with caution.")
+    # st.warning("⚠️ The model is currently under production and may make mistakes. Please use with caution.")
+
+
+if __name__ == "__main__":
+    import sys
+
+    print("This is a Streamlit app. Run it with:", file=sys.stderr)
+    print("  streamlit run main.py", file=sys.stderr)
+    sys.exit(1)

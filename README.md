@@ -38,7 +38,7 @@ The project includes:
 
 Before you begin, ensure you have the following installed:
 
-*   **Python 3.6 or higher:** You can download it from the [official Python website](https://www.python.org/downloads/).
+*   **Python 3.9 or higher:** You can download it from the [official Python website](https://www.python.org/downloads/).
 *   **pip:** Python's package installer (usually included with Python).
 *   **TensorFlow:** Used for training and using the CNN model. You can find installation instructions on the [TensorFlow website](https://www.tensorflow.org/install).
 *   **Streamlit:** Used for creating the web application. Instructions are available on the [Streamlit website](https://streamlit.io/installation).
@@ -66,11 +66,9 @@ Before you begin, ensure you have the following installed:
     pip install -r requirements.txt
     ```
 
-### Downloading the Model
+### Model (local only)
 
-The trained model is a crucial component of the app. Because of size constraints, it's downloaded during the first execution.
-
-Place the downloaded file named `trained_plant_disease_model.h5`  in the same directory as `main.py`.
+The app uses a **local** trained model; it does not download the model. Place the file `trained_plant_disease_model.h5` in the same directory as `main.py` (project root). Train the model using `Train_plant_disease.ipynb` and save it, or copy an existing trained model there.
 
 ### Running the Application
 
