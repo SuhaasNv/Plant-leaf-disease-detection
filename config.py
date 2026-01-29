@@ -1,14 +1,15 @@
 """
-Centralized configuration for the Plant Disease Recognition project.
+Single source of truth for the Plant Disease Recognition project.
 
-This module defines:
-- Data paths
-- Image size & batch sizes
-- Random seeds for reproducibility
-- Model & training hyperparameters
-- Data augmentation hyperparameters
+Centralizes: paths (PROJECT_ROOT, data/train|valid|test), hyperparameters
+(IMG_SIZE, batch sizes, learning rate, epochs), seed (SEED), and class label
+ordering (CLASS_NAMES). All notebooks and the Streamlit app import from here
+instead of hard-coding values.
 
-Import this in notebooks / scripts instead of hard‑coding values.
+Why centralize: (1) Reproducibility — one place to change for new experiments.
+(2) Experiment control — ExperimentConfig snapshots are persisted with runs.
+(3) Consistency — same class order everywhere avoids index/label drift at
+inference and in evaluation.
 """
 
 from pathlib import Path
@@ -31,8 +32,8 @@ IMG_SIZE: Tuple[int, int] = (128, 128)
 NUM_CHANNELS: int = 3
 NUM_CLASSES: int = 38
 
-# Class names in the same order as image_dataset_from_directory (alphabetical by folder name).
-# Used by main.py and should match training/test dataset label indices.
+# Class names in the same order as image_dataset_from_directory (alphabetical by folder).
+# Used by main.py and Test notebook for label mapping; must match training label indices.
 CLASS_NAMES: Tuple[str, ...] = (
     "Apple___Apple_scab",
     "Apple___Black_rot",

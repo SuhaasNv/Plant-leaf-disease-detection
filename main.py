@@ -1,3 +1,8 @@
+"""
+Streamlit UI for plant disease inference. Thin layer: ML logic (preprocessing, model)
+delegates to config + data_pipeline assumptions; this file handles upload, display, and
+result rendering only.
+"""
 import io
 import os
 from typing import Optional
@@ -17,19 +22,28 @@ st.set_page_config(
 )
 
 MODEL_PATH = "trained_plant_disease_model.h5"
-# Inference passes raw pixels [0,255]; the saved model must include Rescaling(1/255) as first layer.
+
+# Preprocessing contract: canonical pipeline normalizes to [0,1] in the dataset; the saved
+# model (from Train notebook cell 3) has no Rescaling layer, so inference must normalize
+# input to [0,1] before predict. See model_prediction() below.
 
 
 @st.cache_resource
 def load_model():
-    """Load the model once and reuse for all predictions (avoids slow reload every time)."""
+    """Load model once per session; @st.cache_resource avoids reload on every prediction."""
     if not os.path.exists(MODEL_PATH):
         return None
     return tf.keras.models.load_model(MODEL_PATH)
 
 
 def model_prediction(test_image) -> Optional[int]:
-    """Run model inference on an uploaded image. Returns class index or None on error."""
+    """
+    Run inference on an uploaded image. Returns class index or None on error.
+
+    Preprocessing must match training: resize to IMG_SIZE, normalize to [0,1].
+    File type/size checks (in the uploader) reduce invalid inputs; we still guard
+    on load errors. Label mapping uses config.CLASS_NAMES for consistency.
+    """
     model = load_model()
     if model is None:
         st.error(f"Model file not found: {MODEL_PATH}. Place the trained model in this directory.")
@@ -38,7 +52,7 @@ def model_prediction(test_image) -> Optional[int]:
         img_bytes = test_image.read()
         image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
         image = image.resize((128, 128))
-        input_arr = np.array(image)
+        input_arr = np.array(image, dtype=np.float32) / 255.0  # match canonical pipeline [0,1]
         input_arr = np.array([input_arr])
     except Exception as e:
         st.error(f"Could not load image: {e}")
@@ -118,6 +132,8 @@ elif app_mode == "About":
 # Disease Recognition Page
 elif app_mode == "Disease Recognition":
     st.header("Disease Recognition")
+    # Input validation (e.g. accepted types, max size) rejects bad uploads early and avoids
+    # unnecessary model loads; UI remains thin and delegates all ML to pipeline contract.
     test_image = st.file_uploader("Choose an Image:")
     
     if test_image:

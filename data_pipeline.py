@@ -1,16 +1,10 @@
 """
-Data and preprocessing pipeline utilities for the Plant Disease Recognition project.
+Canonical data pipeline for the Plant Disease Recognition project.
 
-This module centralizes:
-- Reproducibility controls (random seeds)
-- Training / validation / test dataset creation
-- Preprocessing (resize + normalization)
-- Data augmentation for training
-- Inference‑time preprocessing for single images
-
-The goal is to have a single source of truth for how data is handled
-so that the training notebooks, evaluation notebooks, and deployed
-Streamlit app all behave consistently.
+This module is the single source of truth for preprocessing and dataset creation.
+Training, validation, test, and inference all use the same normalization ([0,1])
+and, for training only, the same augmentation. That design prevents data leakage
+(train-only augmentation) and inference mismatch (same preprocessing at serve time).
 """
 
 import os
@@ -29,14 +23,10 @@ import config
 
 def set_global_seed(seed: int = config.SEED) -> None:
     """
-    Set random seeds for Python, NumPy, and TensorFlow to improve reproducibility.
+    Set random seeds for Python, NumPy, and TensorFlow (ML lifecycle: all stages).
 
-    This does not guarantee perfect determinism across all platforms / GPUs,
-    but it ensures that:
-    - Dataset shuffling
-    - Weight initialization
-    - Numpy operations
-    will be consistent between runs with the same seed.
+    Call once at training start. Ensures dataset shuffling, weight init, and
+    numpy ops are consistent across runs; does not guarantee full determinism on all GPUs.
     """
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
@@ -48,12 +38,10 @@ def set_global_seed(seed: int = config.SEED) -> None:
 
 def get_preprocessing_layer() -> tf.keras.Sequential:
     """
-    Return the core preprocessing layer applied to ALL images
-    (train, validation, test, and inference).
+    Core preprocessing applied to train, validation, test, and inference (no augmentation).
 
-    Steps:
-    1. Convert raw pixel values from [0, 255] to floating point.
-    2. Normalize pixel intensities to [0, 1] via Rescaling(1./255).
+    Rescaling(1/255) only. Shared by all dataset builders and by inference so
+    training and serving see the same input distribution.
     """
     return tf.keras.Sequential(
         [
@@ -65,15 +53,10 @@ def get_preprocessing_layer() -> tf.keras.Sequential:
 
 def get_data_augmentation_layer() -> tf.keras.Sequential:
     """
-    Return the data augmentation pipeline applied ONLY to training images.
+    Augmentation pipeline applied ONLY in training (not validation/test/inference).
 
-    Augmentations:
-    - RandomFlip: horizontal and vertical flips to simulate different orientations.
-    - RandomRotation: small rotations to improve rotational invariance.
-    - RandomZoom: zoom in/out to simulate distance to camera.
-    - RandomBrightness: adjust brightness to simulate lighting changes.
-
-    All augmentation parameters are controlled from config.DATA_AUGMENTATION_CONFIG.
+    RandomFlip, RandomRotation, RandomZoom, RandomBrightness. Kept out of val/test
+    to avoid data leakage and to keep metrics comparable; inference sees no augmentation.
     """
     aug_cfg = config.DATA_AUGMENTATION_CONFIG
     return tf.keras.Sequential(
@@ -98,12 +81,8 @@ def _base_dataset_from_directory(
     shuffle: bool,
 ) -> tf.data.Dataset:
     """
-    Internal helper to create a raw tf.data.Dataset from a directory of images.
-
-    It delegates to tf.keras.utils.image_dataset_from_directory, which:
-    - Reads images from subdirectories (one subdirectory per class).
-    - Resizes them to config.IMG_SIZE.
-    - Returns (image_batch, one_hot_labels).
+    Internal: raw dataset from directory (one subdir per class). Resize to IMG_SIZE.
+    Callers apply preprocessing (and optionally augmentation) via map().
     """
     return tf.keras.utils.image_dataset_from_directory(
         directory,
@@ -120,12 +99,9 @@ def _base_dataset_from_directory(
 
 def build_training_dataset() -> tf.data.Dataset:
     """
-    Build the full TRAINING pipeline:
-    - Load images from data/train.
-    - Shuffle and batch.
-    - Apply data augmentation.
-    - Apply normalization to [0, 1].
-    - Enable prefetching for performance.
+    Training dataset (ML lifecycle: training only). Augmentation ON, then normalize [0,1].
+
+    Order: raw load -> augment -> preprocess. Val/test use the same preprocess, no augment.
     """
     raw_ds = _base_dataset_from_directory(
         config.TRAIN_DIR,
@@ -148,11 +124,9 @@ def build_training_dataset() -> tf.data.Dataset:
 
 def build_validation_dataset() -> tf.data.Dataset:
     """
-    Build the VALIDATION pipeline:
-    - Load images from data/valid.
-    - Do NOT apply augmentation (we want a stable validation signal).
-    - Apply normalization to [0, 1].
-    - Enable prefetching for performance.
+    Validation dataset (ML lifecycle: validation only). Augmentation OFF, normalize [0,1].
+
+    No augmentation so validation metrics are stable and comparable across runs.
     """
     raw_ds = _base_dataset_from_directory(
         config.VALID_DIR,
@@ -173,11 +147,9 @@ def build_validation_dataset() -> tf.data.Dataset:
 
 def build_test_dataset() -> tf.data.Dataset:
     """
-    Build the TEST pipeline:
-    - Load images from data/test.
-    - No augmentation.
-    - Apply normalization to [0, 1].
-    - Prefetch for performance.
+    Test dataset (ML lifecycle: testing only). Augmentation OFF, normalize [0,1].
+
+    Same preprocessing as train/val; used for final evaluation and reporting.
     """
     raw_ds = _base_dataset_from_directory(
         config.TEST_DIR,
@@ -200,16 +172,10 @@ def build_test_dataset() -> tf.data.Dataset:
 
 def preprocess_single_image_for_inference(image_path: Path) -> tf.Tensor:
     """
-    Preprocess a single image from disk for inference.
+    Inference-time preprocessing (ML lifecycle: inference). No augmentation, normalize [0,1].
 
-    Steps:
-    1. Load the image from `image_path`.
-    2. Resize to 128x128 (config.IMG_SIZE).
-    3. Convert to float32 and add batch dimension.
-    4. Normalize to [0, 1] using the same preprocessing layer used in training.
-
-    Returns:
-        A 4D tensor of shape (1, H, W, C) ready to pass to model.predict().
+    Same normalization as training so the model sees the same input distribution.
+    Returns (1, H, W, C) batch. Streamlit app does equivalent logic in-process.
     """
     image = tf.keras.preprocessing.image.load_img(
         image_path,
@@ -257,18 +223,10 @@ def save_experiment_artifacts(
     experiment_config: config.ExperimentConfig | None = None,
 ) -> None:
     """
-    Persist training history, metrics, and metadata to disk as JSON.
+    Persist training history, metrics, and config snapshot to experiments/ (reproducibility).
 
-    This function is designed to be called from the training notebook
-    after training and evaluation have finished.
-
-    Args:
-        run_id:         Unique identifier for this run (e.g. from build_experiment_run_id()).
-        history:        Keras History object returned by model.fit().
-        train_metrics:  Dict with metrics on the training set (e.g. {'accuracy': ..., 'loss': ...}).
-        val_metrics:    Dict with metrics on the validation set.
-        test_metrics:   Dict with metrics on the test set, or None if not evaluated.
-        experiment_config: Optional ExperimentConfig snapshot; if None, DEFAULT_EXPERIMENT_CONFIG is used.
+    Called from the training notebook after fit and evaluate. Config snapshot allows
+    exact hyperparameters to be recovered for the run.
     """
     import json
 
