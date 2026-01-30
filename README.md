@@ -22,6 +22,7 @@ A production-ready deep learning system for identifying plant diseases from leaf
 - [Model Architecture](#-model-architecture)
 - [Supported Diseases](#-supported-diseases)
 - [Project Structure](#-project-structure)
+- [CI/CD and Deployment](#-cicd-and-deployment)
 - [Reproducibility](#-reproducibility)
 - [Performance](#-performance)
 - [Contributing](#-contributing)
@@ -95,6 +96,9 @@ Plant-leaf-disease-detection/
 ├── requirements.txt          # Python dependencies
 ├── .gitignore               # Git ignore rules
 ├── README.md                # This file
+├── .github/
+│   └── workflows/
+│       └── ci.yml            # CI: lint + smoke test on push/PR
 │
 ├── data/                    # Dataset (not in repo)
 │   ├── train/               # Training images (70%)
@@ -338,6 +342,33 @@ The model detects diseases across **14 crop types**:
 - Model evaluation on test set
 - Confusion matrix visualization
 - Classification report generation
+
+---
+
+## 🚀 CI/CD and Deployment
+
+### Continuous Integration (GitHub Actions)
+
+On every push or pull request to `main` (or `master`), GitHub Actions runs:
+
+- **Install** dependencies from `requirements.txt`
+- **Lint** Python files with Ruff (`config.py`, `data_pipeline.py`, `main.py`, `split_valid_to_test.py`)
+- **Smoke test** that `config`, `data_pipeline`, and `main` import successfully
+
+Workflow file: [`.github/workflows/ci.yml`](.github/workflows/ci.yml). No secrets required.
+
+### Continuous Deployment (Streamlit Community Cloud)
+
+To deploy the app to [Streamlit Community Cloud](https://share.streamlit.io/):
+
+1. Push this repo to **GitHub**.
+2. Go to [share.streamlit.io](https://share.streamlit.io/), sign in with GitHub, and click **New app**.
+3. Select your repo, set **Main file path** to `main.py`, and pick a Python version (e.g. 3.11) in Advanced settings.
+4. **Model file:** The app expects `trained_plant_disease_model.h5` in `Prev Models/` (or project root). Either:
+   - **Option A:** Add the model to the repo (e.g. [Git LFS](https://git-lfs.github.com/) for large files), or
+   - **Option B:** Host the `.h5` elsewhere (e.g. Google Drive, S3), then in `main.py` add startup logic to download it using a [Streamlit secret](https://docs.streamlit.io/streamlit-community-cloud/deploy-your-app/secrets-management) (e.g. `MODEL_URL`).
+
+After deployment, the app will run at `https://<your-app>.streamlit.app`.
 
 ---
 

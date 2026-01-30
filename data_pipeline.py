@@ -11,7 +11,7 @@ import os
 import random
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple, Dict, Any
+from typing import Dict, Any
 
 import numpy as np
 import tensorflow as tf

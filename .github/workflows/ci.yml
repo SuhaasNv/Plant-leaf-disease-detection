@@ -1,0 +1,39 @@
+# CI: lint and smoke test on push/PR to main.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install lint (dev)
+        run: pip install ruff
+
+      - name: Lint
+        run: ruff check config.py data_pipeline.py main.py split_valid_to_test.py --ignore E501
+
+      - name: Smoke test (imports)
+        run: |
+          python -c "import config; import data_pipeline; print('config, data_pipeline OK')"
+          python -c "import main; print('main OK')"
