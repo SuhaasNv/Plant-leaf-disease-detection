@@ -5,6 +5,7 @@ result rendering only.
 """
 import io
 import os
+from pathlib import Path
 from typing import Optional
 
 import numpy as np  # type: ignore[import-untyped]
@@ -21,19 +22,30 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-MODEL_PATH = "trained_plant_disease_model.h5"
-
 # Preprocessing contract: canonical pipeline normalizes to [0,1] in the dataset; the saved
 # model (from Train notebook cell 3) has no Rescaling layer, so inference must normalize
 # input to [0,1] before predict. See model_prediction() below.
 
+# Only Prev Models (no project-root fallback so we never load an old .h5 from root).
+_PREV_MODEL = config.PROJECT_ROOT / "Prev Models" / "trained_plant_disease_model.h5"
+_PREV_MODEL_CWD = Path.cwd() / "Prev Models" / "trained_plant_disease_model.h5"
+
+
+def _resolve_model_path() -> Optional[str]:
+    """Use only Prev Models file; try project root path then cwd path."""
+    if _PREV_MODEL.exists():
+        return str(_PREV_MODEL)
+    if _PREV_MODEL_CWD.exists():
+        return str(_PREV_MODEL_CWD)
+    return None
+
 
 @st.cache_resource
-def load_model():
-    """Load model once per session; @st.cache_resource avoids reload on every prediction."""
-    if not os.path.exists(MODEL_PATH):
+def load_model(path: str):
+    """Load model once per path (Prev Models only); cache so we don't reload every click."""
+    if not path or not os.path.exists(path):
         return None
-    return tf.keras.models.load_model(MODEL_PATH)
+    return tf.keras.models.load_model(path)
 
 
 def model_prediction(test_image) -> Optional[int]:
@@ -44,15 +56,23 @@ def model_prediction(test_image) -> Optional[int]:
     File type/size checks (in the uploader) reduce invalid inputs; we still guard
     on load errors. Label mapping uses config.CLASS_NAMES for consistency.
     """
-    model = load_model()
+    model_path = _resolve_model_path()
+    if model_path is None:
+        st.error("Model file not found. Put trained_plant_disease_model.h5 in Prev Models, then try again.")
+        return None
+    model = load_model(model_path)
     if model is None:
-        st.error(f"Model file not found: {MODEL_PATH}. Place the trained model in this directory.")
+        st.error("Failed to load model.")
         return None
     try:
+        test_image.seek(0)  # reset stream so each Predict click reads the same upload (otherwise read() returns empty after first time)
         img_bytes = test_image.read()
         image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-        image = image.resize((128, 128))
-        input_arr = np.array(image, dtype=np.float32) / 255.0  # match canonical pipeline [0,1]
+        image = image.resize(config.IMG_SIZE)
+        input_arr = np.array(image, dtype=np.float32)
+        # Prev Models (95% run) was likely saved from the notebook's *other* model that has Rescaling(1/255) as first layer—it expects raw [0,255]. Canonical model has no Rescaling and expects [0,1].
+        if not (model.layers and "rescaling" in model.layers[0].name.lower()):
+            input_arr = input_arr / 255.0
         input_arr = np.array([input_arr])
     except Exception as e:
         st.error(f"Could not load image: {e}")
@@ -132,8 +152,11 @@ elif app_mode == "About":
 # Disease Recognition Page
 elif app_mode == "Disease Recognition":
     st.header("Disease Recognition")
-    # Input validation (e.g. accepted types, max size) rejects bad uploads early and avoids
-    # unnecessary model loads; UI remains thin and delegates all ML to pipeline contract.
+    model_path = _resolve_model_path()
+    if model_path:
+        st.caption(f"Using model: **{model_path}**")
+    else:
+        st.warning("No model file found in Prev Models. Train and save to Prev Models, or put trained_plant_disease_model.h5 there.")
     test_image = st.file_uploader("Choose an Image:")
     
     if test_image:
@@ -147,6 +170,7 @@ elif app_mode == "Disease Recognition":
                 if 0 <= result_index < len(config.CLASS_NAMES):
                     label = config.CLASS_NAMES[result_index]
                     st.success(f"Model predicts: **{label}**")
+                    st.caption(f"(class index {result_index})")
                 else:
                     st.error(f"Invalid prediction index: {result_index}")
             else:
