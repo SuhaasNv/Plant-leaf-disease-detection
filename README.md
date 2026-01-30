@@ -94,7 +94,6 @@ Plant-leaf-disease-detection/
 ├── Test_plant_disease.ipynb  # Evaluation & testing notebook
 ├── requirements.txt          # Python dependencies
 ├── .gitignore               # Git ignore rules
-├── AUDIT.md                 # Codebase audit report
 ├── README.md                # This file
 │
 ├── data/                    # Dataset (not in repo)
@@ -413,8 +412,6 @@ Contributions are welcome! To contribute:
 **Guidelines:**
 - Keep changes focused and well-documented
 - Maintain backward compatibility where possible
-- Update `AUDIT.md` if making architectural changes
-
 ---
 
 ## 👤 Author
