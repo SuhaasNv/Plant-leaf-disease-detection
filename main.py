@@ -44,19 +44,43 @@ def _get_model_url_from_secrets() -> Optional[str]:
     return os.environ.get("MODEL_URL") or None
 
 
-def _download_model_to(path: Path, model_url: str) -> bool:
-    """Download model from URL (e.g. Google Drive) to path. Returns True on success."""
+def _extract_drive_id(url: str) -> Optional[str]:
+    """Extract Google Drive file ID from share or uc link."""
+    s = url.strip()
+    if "/file/d/" in s:
+        start = s.find("/file/d/") + 7
+        end = s.find("/", start)
+        if end == -1:
+            end = s.find("?", start)
+        if end == -1:
+            end = len(s)
+        return s[start:end]
+    if "id=" in s:
+        start = s.find("id=") + 3
+        end = s.find("&", start)
+        if end == -1:
+            end = len(s)
+        return s[start:end].strip()
+    return None
+
+
+def _download_model_to(path: Path, model_url: str) -> tuple[bool, str]:
+    """Download model from URL (e.g. Google Drive) to path. Returns (success, error_message)."""
     try:
         import gdown
         path.parent.mkdir(parents=True, exist_ok=True)
-        # Support both full URL and raw Google Drive file ID.
-        if "drive.google.com" in model_url:
-            gdown.download(url=model_url, output=str(path), quiet=True, fuzzy=True)
+        url = model_url.strip()
+        if "drive.google.com" in url:
+            file_id = _extract_drive_id(url)
+            if file_id:
+                gdown.download(id=file_id, output=str(path), quiet=True)
+            else:
+                gdown.download(url=url, output=str(path), quiet=True, fuzzy=True)
         else:
-            gdown.download(url=model_url, output=str(path), quiet=True)
-        return path.exists()
-    except Exception:
-        return False
+            gdown.download(url=url, output=str(path), quiet=True)
+        return (path.exists(), "")
+    except Exception as e:
+        return (False, str(e))
 
 
 def _resolve_model_path() -> Optional[str]:
@@ -71,9 +95,17 @@ def _resolve_model_path() -> Optional[str]:
     model_url = _get_model_url_from_secrets()
     if model_url:
         with st.spinner("Downloading model from Google Drive…"):
-            if _download_model_to(_DOWNLOADED_MODEL, model_url):
+            ok, err = _download_model_to(_DOWNLOADED_MODEL, model_url)
+            if ok:
                 return str(_DOWNLOADED_MODEL)
-        st.error("Model download failed. Check MODEL_URL in Streamlit secrets and Drive sharing.")
+        st.error(
+            "Model download failed. Check: (1) MODEL_URL in Streamlit secrets is the full share link "
+            "(e.g. https://drive.google.com/file/d/FILE_ID/view?usp=sharing). "
+            "(2) File is shared so **Anyone with the link** can view. "
+            "(3) For large files, use the direct link: https://drive.google.com/uc?id=FILE_ID"
+        )
+        if err:
+            st.caption(f"Error: {err}")
     return None
 
 

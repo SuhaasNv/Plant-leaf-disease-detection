@@ -30,6 +30,9 @@ Thumbs.db
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
+# Streamlit secrets (contains MODEL_URL for Google Drive)
+.streamlit/secrets.toml
+
 # Optional
 *.log
 .pytest_cache/
