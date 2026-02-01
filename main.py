@@ -29,14 +29,51 @@ st.set_page_config(
 # Only Prev Models (no project-root fallback so we never load an old .h5 from root).
 _PREV_MODEL = config.PROJECT_ROOT / "Prev Models" / "trained_plant_disease_model.h5"
 _PREV_MODEL_CWD = Path.cwd() / "Prev Models" / "trained_plant_disease_model.h5"
+# Fallback: downloaded model (e.g. from Google Drive on Streamlit Cloud).
+_DOWNLOADED_MODEL = Path.cwd() / "trained_plant_disease_model.h5"
+
+
+def _get_model_url_from_secrets() -> Optional[str]:
+    """Return MODEL_URL from Streamlit secrets or env (for Streamlit Cloud / Google Drive)."""
+    try:
+        url = st.secrets.get("MODEL_URL", "")
+        if url:
+            return url
+    except Exception:
+        pass
+    return os.environ.get("MODEL_URL") or None
+
+
+def _download_model_to(path: Path, model_url: str) -> bool:
+    """Download model from URL (e.g. Google Drive) to path. Returns True on success."""
+    try:
+        import gdown
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Support both full URL and raw Google Drive file ID.
+        if "drive.google.com" in model_url:
+            gdown.download(url=model_url, output=str(path), quiet=True, fuzzy=True)
+        else:
+            gdown.download(url=model_url, output=str(path), quiet=True)
+        return path.exists()
+    except Exception:
+        return False
 
 
 def _resolve_model_path() -> Optional[str]:
-    """Use only Prev Models file; try project root path then cwd path."""
+    """Use Prev Models file if present; else download from MODEL_URL (Streamlit Cloud) if set."""
     if _PREV_MODEL.exists():
         return str(_PREV_MODEL)
     if _PREV_MODEL_CWD.exists():
         return str(_PREV_MODEL_CWD)
+    if _DOWNLOADED_MODEL.exists():
+        return str(_DOWNLOADED_MODEL)
+
+    model_url = _get_model_url_from_secrets()
+    if model_url:
+        with st.spinner("Downloading model from Google Drive…"):
+            if _download_model_to(_DOWNLOADED_MODEL, model_url):
+                return str(_DOWNLOADED_MODEL)
+        st.error("Model download failed. Check MODEL_URL in Streamlit secrets and Drive sharing.")
     return None
 
 
@@ -58,7 +95,10 @@ def model_prediction(test_image) -> Optional[int]:
     """
     model_path = _resolve_model_path()
     if model_path is None:
-        st.error("Model file not found. Put trained_plant_disease_model.h5 in Prev Models, then try again.")
+        st.error(
+            "Model file not found. Put trained_plant_disease_model.h5 in Prev Models, "
+            "or set MODEL_URL in Streamlit secrets (e.g. Google Drive direct link) for deployment."
+        )
         return None
     model = load_model(model_path)
     if model is None:
@@ -156,7 +196,10 @@ elif app_mode == "Disease Recognition":
     if model_path:
         st.caption(f"Using model: **{model_path}**")
     else:
-        st.warning("No model file found in Prev Models. Train and save to Prev Models, or put trained_plant_disease_model.h5 there.")
+        st.warning(
+            "No model file found. Add trained_plant_disease_model.h5 to Prev Models, "
+            "or set MODEL_URL in Streamlit secrets for cloud deployment."
+        )
     test_image = st.file_uploader("Choose an Image:")
     
     if test_image:
