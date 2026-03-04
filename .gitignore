@@ -1,6 +1,8 @@
 # Data and model artifacts
 data/
+Prev Models/
 *.h5
+!trained_plant_disease_model.h5
 *.keras
 experiments/
 

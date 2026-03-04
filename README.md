@@ -396,9 +396,7 @@ To deploy the **Next.js + FastAPI** stack:
 
 - Push the repo to GitHub, then create a new project at [railway.app](https://railway.app) → **Deploy from GitHub repo**.
 - Railway will use the root `Dockerfile`.
-- **Model file** (choose one):
-  - **Option A:** Add `trained_plant_disease_model.h5` to the repo (e.g. [Git LFS](https://git-lfs.github.com/)), then uncomment the `COPY trained_plant_disease_model.h5 .` line in the Dockerfile.
-  - **Option B:** Host the model elsewhere (e.g. Google Drive “Share” → “Get link” → use the direct download URL). Add env var **`MODEL_URL`** = that URL. The app will download the model at startup.
+- **Model file:** Save `trained_plant_disease_model.h5` from `Train_plant_disease.ipynb` to the project root and commit it. For large files, use [Git LFS](https://git-lfs.github.com/).
 - In **Settings → Networking**, generate a public domain (e.g. `https://your-app.up.railway.app`).
 - Add env var **`CORS_ORIGINS`** = `https://your-frontend.vercel.app` (comma-separated if you have multiple origins).
 

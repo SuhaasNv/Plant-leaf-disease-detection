@@ -2,15 +2,17 @@
 
 import { useState, useRef } from "react";
 
-// API returns {"class": string, "confidence": float}
+// API returns {"class": string, "confidence": float} (or "cls" in some cases)
 type PredictionResult = {
-  class: string;
+  class?: string;
+  cls?: string;
   confidence: number;
 };
 
 type Props = { apiUrl: string };
 
-function formatLabel(raw: string) {
+function formatLabel(raw: string | undefined | null): string {
+  if (raw == null || typeof raw !== "string") return "Unknown";
   return raw
     .replace(/___/g, " — ")
     .replace(/_/g, " ")
@@ -95,7 +97,7 @@ export function DiseaseUpload({ apiUrl }: Props) {
   };
 
   const confidencePct = result ? Math.round(result.confidence * 100) : 0;
-  const isHealthy = result?.["class"]?.toLowerCase().includes("healthy");
+  const isHealthy = (result?.["class"] ?? result?.cls)?.toLowerCase().includes("healthy");
 
   return (
     <div className="space-y-4">
@@ -201,7 +203,7 @@ export function DiseaseUpload({ apiUrl }: Props) {
           {/* Class name + status badge */}
           <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
             <h3 className="text-xl font-bold leading-tight text-gray-900 sm:text-3xl">
-              {formatLabel(result["class"])}
+              {formatLabel(result["class"] ?? result.cls)}
             </h3>
             <span
               className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${

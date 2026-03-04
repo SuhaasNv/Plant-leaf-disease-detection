@@ -14,9 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY config.py .
 COPY api/main.py .
 
-# Model: (a) copy from repo - uncomment if model is committed (e.g. via Git LFS):
-# COPY trained_plant_disease_model.h5 .
-# (b) Or set MODEL_URL env var to a direct download URL - app downloads at startup.
+# Model file (from project root; add trained_plant_disease_model.h5 to repo)
+COPY trained_plant_disease_model.h5 .
 
 EXPOSE 8000
 

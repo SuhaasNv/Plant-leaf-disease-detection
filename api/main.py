@@ -1,7 +1,6 @@
 import io
 import os
 import sys
-import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,17 +9,18 @@ import tensorflow as tf
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config
 
-# Local dev: model at project root. Docker: model copied to /app or downloaded via MODEL_URL.
-# Supports both .keras and .h5 (notebook saves trained_plant_disease_model.h5).
+# Local dev: model at project root, Prev Models/, or api/. Docker: model copied to /app.
 _base = Path(__file__).resolve().parent
+_root = _base.parent
 _candidates = [
-    _base.parent / "plant_disease_v2.keras",
-    _base.parent / "trained_plant_disease_model.h5",
+    _root / "plant_disease_v2.keras",
+    _root / "trained_plant_disease_model.h5",
+    _root / "Prev Models" / "trained_plant_disease_model.h5",
     _base / "plant_disease_v2.keras",
     _base / "trained_plant_disease_model.h5",
 ]
@@ -29,27 +29,12 @@ MODEL_PATH = next((p for p in _candidates if p.exists()), _base / "trained_plant
 model: tf.keras.Model
 
 
-def _ensure_model() -> Path:
-    """Return path to model file, downloading from MODEL_URL if needed."""
-    if MODEL_PATH.exists():
-        return MODEL_PATH
-    url = os.getenv("MODEL_URL")
-    if url:
-        dest = _base / "trained_plant_disease_model.h5"
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        urllib.request.urlretrieve(url, dest)
-        return dest
-    raise RuntimeError(
-        f"Model not found at {MODEL_PATH}. "
-        "Add the model file to the project root, or set MODEL_URL to download it."
-    )
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global model
-    path = _ensure_model()
-    model = tf.keras.models.load_model(path)
+    if not MODEL_PATH.exists():
+        raise RuntimeError(f"Model not found: {MODEL_PATH}")
+    model = tf.keras.models.load_model(MODEL_PATH)
     yield
 
 
@@ -66,15 +51,10 @@ app.add_middleware(
 
 
 class PredictResponse(BaseModel):
-    cls: str
+    cls: str = Field(serialization_alias="class")
     confidence: float
 
-    model_config = {"populate_by_name": True}
-
-    def model_dump(self, **kwargs):
-        d = super().model_dump(**kwargs)
-        d["class"] = d.pop("cls")
-        return d
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
 
 @app.get("/health")
@@ -94,7 +74,7 @@ async def predict(file: UploadFile = File(...)):
     except Exception:
         raise HTTPException(status_code=400, detail="Could not decode image.")
 
-    arr = np.array(img, dtype=np.float32) / 255.0   # normalize to [0, 1]
+    arr = np.array(img, dtype=np.float32)  # model has built-in Rescaling layer — do NOT divide again
     scores = model.predict(arr[np.newaxis], verbose=0)[0]
     idx = int(np.argmax(scores))
 
