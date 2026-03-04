@@ -74,14 +74,16 @@ def _clean_legacy_config(config: dict) -> dict:
 
 class _LegacyInputLayer(tf.keras.layers.InputLayer):
     """
-    Compatibility shim for models saved with old tf.keras that used 'batch_shape'
-    in InputLayer config. Newer Keras versions reject this key, so we strip it.
+    Compatibility shim for models saved with old tf.keras that used 'batch_shape'.
+    We convert it to batch_input_shape so the first Conv2D gets a defined channel dim.
     """
 
     @classmethod
     def from_config(cls, config):
         cfg = dict(config)
-        cfg.pop("batch_shape", None)
+        batch_shape = cfg.pop("batch_shape", None)
+        if batch_shape is not None:
+            cfg["batch_input_shape"] = batch_shape
         cfg = _clean_legacy_config(cfg)
         return super().from_config(cfg)
 

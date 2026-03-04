@@ -17,6 +17,7 @@ COPY api/main.py .
 # Model file (from project root; add trained_plant_disease_model.h5 to repo)
 COPY trained_plant_disease_model.h5 .
 
-EXPOSE 8000
+EXPOSE 8080
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Railway injects PORT (default 8080); use it so the app is reachable
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
