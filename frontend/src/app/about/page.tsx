@@ -1,5 +1,3 @@
-import { RevealWaveImage } from "@/components/ui/reveal-wave-image";
-
 const crops = [
   "Apple", "Corn", "Tomato", "Potato", "Grape",
   "Peach", "Pepper", "Strawberry", "Blueberry",
@@ -26,27 +24,6 @@ export default function About() {
           portfolio project demonstrating production ML engineering.
         </p>
       </div>
-
-      {/* Interactive leaf showcase */}
-      <section className="mt-10 sm:mt-12">
-        <h2 className="text-lg font-semibold text-gray-900 sm:text-xl">Interactive Showcase</h2>
-        <p className="mt-2 text-sm text-gray-500">
-          Hover over the image to reveal the original colour.
-        </p>
-        <div className="mt-4 overflow-hidden rounded-2xl shadow-xl" style={{ height: "340px" }}>
-          <RevealWaveImage
-            src="/hero.jpg"
-            waveSpeed={0.2}
-            waveFrequency={0.8}
-            waveAmplitude={0.4}
-            revealRadius={0.28}
-            revealSoftness={0.8}
-            pixelSize={2}
-            mouseRadius={0.35}
-            className="h-full w-full"
-          />
-        </div>
-      </section>
 
       {/* Dataset */}
       <section className="mt-10 sm:mt-12">

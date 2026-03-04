@@ -1,97 +1,53 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+import { motion } from "framer-motion";
 import { TextScramble } from "@/components/ui/text-scramble";
-import { cn } from "@/lib/utils";
-
-const HERO_IMAGES = ["/hero.jpg", "/hero2.jpg", "/hero3.jpg", "/hero4.jpg"];
-const SLIDE_INTERVAL_MS = 5500;
+import { RevealWaveImage } from "@/components/ui/reveal-wave-image";
 
 export function HeroSection() {
   const [ctaHovered, setCtaHovered] = useState(false);
-  const [currentIdx, setCurrentIdx] = useState(0);
-
-  // Preload all hero images so transitions don't cut on first appearance
-  useEffect(() => {
-    HERO_IMAGES.forEach((src) => {
-      const img = new window.Image();
-      img.src = src;
-    });
-  }, []);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentIdx((i) => (i + 1) % HERO_IMAGES.length);
-    }, SLIDE_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, []);
 
   return (
     <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center overflow-hidden bg-slate-950">
 
-      {/* Slideshow — AnimatePresence crossfades between images (mode=sync = overlap) */}
-      <AnimatePresence mode="sync">
-        <motion.div
-          key={currentIdx}
-          initial={{ opacity: 0, scale: 1.06 }}
-          animate={{ opacity: 1, scale: 1.03 }}
-          exit={{ opacity: 0, scale: 1.0 }}
-          transition={{
-            opacity: { duration: 1.6, ease: "easeInOut" },
-            scale:   { duration: 7,   ease: "easeOut" },  // slow Ken Burns zoom
-          }}
-          className="absolute inset-0"
-        >
-          <Image
-            src={HERO_IMAGES[currentIdx]}
-            alt=""
-            fill
-            priority={currentIdx === 0}
-            className="object-cover blur-[2px]"
-          />
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Dark base overlay */}
-      <div className="absolute inset-0 bg-slate-950/55" />
-
-      {/* Natural ambient glow — soft, wide, like light filtering through a canopy */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_50%_55%,rgba(34,197,94,0.10),transparent_75%)]" />
-      {/* Subtle warm edge scatter */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_100%_60%_at_20%_80%,rgba(34,197,94,0.05),transparent_60%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_100%_60%_at_80%_80%,rgba(34,197,94,0.05),transparent_60%)]" />
-
-      {/* Top fade so the nav blends seamlessly into the hero */}
-      <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-slate-950/70 to-transparent" />
-      {/* Bottom fade into page content */}
-      <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950/50 to-transparent" />
-
-      {/* Slide indicator dots */}
-      <div className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 gap-2">
-        {HERO_IMAGES.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setCurrentIdx(i)}
-            aria-label={`Go to slide ${i + 1}`}
-            className={cn(
-              "h-1.5 rounded-full transition-all duration-500",
-              i === currentIdx
-                ? "w-6 bg-green-400"
-                : "w-1.5 bg-white/25 hover:bg-white/45"
-            )}
-          />
-        ))}
+      {/* RevealWaveImage — full-screen background. Dithered B&W by default;
+          hover anywhere in the hero to reveal the original colour beneath. */}
+      <div className="absolute inset-0 z-0">
+        <RevealWaveImage
+          src="/hero.jpg"
+          waveSpeed={0.1}
+          waveFrequency={0.6}
+          waveAmplitude={0.3}
+          revealRadius={0.32}
+          revealSoftness={0.9}
+          pixelSize={2}
+          mouseRadius={0.35}
+          className="h-full w-full"
+        />
       </div>
 
-      {/* Hero content */}
+      {/* All overlays are pointer-events-none so mouse events reach the canvas */}
+
+      {/* Darkens the dithered image just enough for text to read cleanly */}
+      <div className="pointer-events-none absolute inset-0 z-10 bg-slate-950/30" />
+
+      {/* Soft green ambient glow — like light bleeding through the canopy */}
+      <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_65%_50%_at_50%_55%,rgba(34,197,94,0.09),transparent_70%)]" />
+
+      {/* Top gradient — nav blends seamlessly */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-28 bg-gradient-to-b from-slate-950/65 to-transparent" />
+
+      {/* Bottom gradient — fades into page content */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-20 bg-gradient-to-t from-slate-950/50 to-transparent" />
+
+      {/* Hero content — z-20 so it sits above all overlays */}
       <motion.div
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.9, ease: "easeOut" }}
-        className="relative z-10 flex flex-col items-center px-4 text-center sm:px-6"
+        className="relative z-20 flex flex-col items-center px-4 text-center sm:px-6"
       >
         {/* Badge */}
         <span className="inline-flex items-center gap-2 rounded-full border border-green-500/30 bg-green-500/10 px-4 py-1.5 text-xs font-medium text-green-400 sm:text-sm">
