@@ -147,11 +147,15 @@ def _load_legacy_model(path: Path) -> tf.keras.Model:
         return tf.keras.models.load_model(path)
 
 
+# Fallback model URL when bundled file is missing or a Git LFS pointer (~200 bytes).
+_DEFAULT_MODEL_URL = "https://drive.google.com/uc?id=1N1eBI4xpBEOGlWcdIEqSak8nF6n4yDJH"
+
+
 def _get_model_path() -> Path:
     """Return path to a valid model file, downloading from MODEL_URL if needed."""
     if MODEL_PATH.exists() and MODEL_PATH.stat().st_size >= MIN_MODEL_BYTES:
         return MODEL_PATH
-    url = os.getenv("MODEL_URL")
+    url = os.getenv("MODEL_URL") or _DEFAULT_MODEL_URL
     if url:
         dest = _base / "trained_plant_disease_model.h5"
         dest.parent.mkdir(parents=True, exist_ok=True)
