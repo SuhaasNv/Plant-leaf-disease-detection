@@ -13,10 +13,14 @@ try:
     import gdown
 except ImportError:
     gdown = None
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, Security, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security.api_key import APIKeyHeader
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config
@@ -183,12 +187,27 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Plant Disease Detection API", lifespan=lifespan)
 
-# CORS: set CORS_ORIGINS env var (comma-separated) to restrict to specific origins.
-# Use "*" (the default) to allow all origins, or list URLs explicitly, e.g.:
-#   CORS_ORIGINS=https://your-app.vercel.app,https://localhost:3000
+# ── Rate limiting (slowapi) ───────────────────────────────────────────────────
+# Default: 10 predict requests per minute per IP.
+# Override with RATE_LIMIT env var, e.g. "20/minute" or "100/hour".
+_rate_limit = os.getenv("RATE_LIMIT", "10/minute")
+limiter = Limiter(key_func=get_remote_address, default_limits=[_rate_limit])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+
+# ── API key auth ──────────────────────────────────────────────────────────────
+# Set API_KEY env var on Railway. If unset, the endpoint is open (dev mode).
+_API_KEY = os.getenv("API_KEY", "").strip() or None
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+async def _require_api_key(key: str | None = Security(_api_key_header)) -> None:
+    if _API_KEY and key != _API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+
+# ── CORS ─────────────────────────────────────────────────────────────────────
+# Set CORS_ORIGINS env var (comma-separated). Defaults to * (open).
 _cors_env = os.getenv("CORS_ORIGINS", "*").strip()
-_use_wildcard = _cors_env == "*"
-_origins_list = ["*"] if _use_wildcard else [o.strip() for o in _cors_env.split(",") if o.strip()]
+_origins_list = ["*"] if _cors_env == "*" else [o.strip() for o in _cors_env.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -197,6 +216,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Input validation constants ────────────────────────────────────────────────
+_MAX_FILE_BYTES = 10 * 1024 * 1024   # 10 MB
+_MAX_IMAGE_DIM  = 4096               # max width or height in pixels
+
+# Magic-byte signatures for accepted image types
+_MAGIC: dict[bytes, str] = {
+    b"\xff\xd8\xff": "image/jpeg",
+    b"\x89PNG\r\n\x1a\n": "image/png",
+    b"RIFF": "image/webp",  # WebP starts with RIFF
+    b"GIF8": "image/gif",
+}
+
+def _validate_image_bytes(raw: bytes) -> None:
+    """Raise 400 if bytes don't look like a supported image."""
+    if len(raw) > _MAX_FILE_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {_MAX_FILE_BYTES // 1_048_576} MB.")
+    for magic, _ in _MAGIC.items():
+        if raw[:len(magic)] == magic:
+            return
+    raise HTTPException(status_code=400, detail="Unsupported file type. Only JPEG, PNG, WebP, and GIF are accepted.")
 
 
 class PredictResponse(BaseModel):
@@ -237,24 +277,47 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/predict", response_model=PredictResponse)
-async def predict(file: UploadFile = File(...)):
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image.")
+@app.post(
+    "/predict",
+    response_model=PredictResponse,
+    dependencies=[Depends(_require_api_key)],
+)
+@limiter.limit(_rate_limit)
+async def predict(request: Request, file: UploadFile = File(...)):  # noqa: ARG001
+    # ── Filename / content-type sanity check ─────────────────────────────────
+    filename = (file.filename or "").lower()
+    allowed_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+    if not any(filename.endswith(ext) for ext in allowed_exts):
+        if not (file.content_type or "").startswith("image/"):
+            raise HTTPException(status_code=400, detail="File must be an image (JPEG, PNG, WebP).")
 
+    # ── Read and hard-limit file size ─────────────────────────────────────────
     raw = await file.read()
+    _validate_image_bytes(raw)
+
+    # ── Decode image ──────────────────────────────────────────────────────────
     try:
         img = Image.open(io.BytesIO(raw)).convert("RGB")
     except Exception:
-        raise HTTPException(status_code=400, detail="Could not decode image.")
+        raise HTTPException(status_code=400, detail="Could not decode image. Please upload a valid image file.")
 
+    # ── Dimension guard ───────────────────────────────────────────────────────
+    w, h = img.size
+    if w > _MAX_IMAGE_DIM or h > _MAX_IMAGE_DIM:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Image dimensions too large ({w}×{h}). Maximum is {_MAX_IMAGE_DIM}×{_MAX_IMAGE_DIM} pixels.",
+        )
+
+    # ── Leaf colour heuristic ─────────────────────────────────────────────────
     if not _is_likely_leaf(img):
         raise HTTPException(
             status_code=422,
             detail="No plant leaf detected. Please upload a clear photo of a leaf.",
         )
 
-    arr = np.array(img.resize(config.IMG_SIZE), dtype=np.float32)  # model has built-in Rescaling layer
+    # ── Model inference ───────────────────────────────────────────────────────
+    arr = np.array(img.resize(config.IMG_SIZE), dtype=np.float32)
     scores = model.predict(arr[np.newaxis], verbose=0)[0]
     idx = int(np.argmax(scores))
     confidence = round(float(scores[idx]), 4)

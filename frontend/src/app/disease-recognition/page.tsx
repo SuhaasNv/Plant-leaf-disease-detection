@@ -1,8 +1,4 @@
-"use client";
-
 import { DiseaseUpload } from "@/components/DiseaseUpload";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function DiseaseRecognitionPage() {
   return (
@@ -24,7 +20,7 @@ export default function DiseaseRecognitionPage() {
 
       {/* Upload card */}
       <div className="mt-8 rounded-2xl bg-white p-4 shadow-xl sm:mt-10 sm:p-8">
-        <DiseaseUpload apiUrl={API_URL} />
+        <DiseaseUpload />
       </div>
 
       {/* Footer hint */}

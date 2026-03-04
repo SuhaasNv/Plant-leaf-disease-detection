@@ -9,8 +9,6 @@ type PredictionResult = {
   confidence: number;
 };
 
-type Props = { apiUrl: string };
-
 function formatLabel(raw: string | undefined | null): string {
   if (raw == null || typeof raw !== "string") return "Unknown";
   return raw
@@ -45,7 +43,7 @@ function easeProgress(t: number) {
   return 1 - Math.pow(1 - t, 2.4);
 }
 
-export function DiseaseUpload({ apiUrl }: Props) {
+export function DiseaseUpload() {
   const [file,     setFile]     = useState<File | null>(null);
   const [preview,  setPreview]  = useState<string | null>(null);
   const [result,   setResult]   = useState<PredictionResult | null>(null);
@@ -121,7 +119,7 @@ export function DiseaseUpload({ apiUrl }: Props) {
     try {
       const body = new FormData();
       body.append("file", file);
-      const res = await fetch(`${apiUrl}/predict`, {
+      const res = await fetch("/api/predict", {
         method: "POST",
         body,
         signal: controller.signal,
@@ -156,7 +154,7 @@ export function DiseaseUpload({ apiUrl }: Props) {
         if (e.name === "AbortError")
           msg = "Request timed out — the model may still be loading. Try again.";
         else if (e.message.toLowerCase().includes("fetch") || e.message.toLowerCase().includes("network"))
-          msg = "Cannot reach the API. If local: run the backend on port 8000. If deployed: check Railway is up and NEXT_PUBLIC_API_URL is set.";
+          msg = "Cannot reach the prediction service. Please try again later.";
         else
           msg = e.message;
       }
