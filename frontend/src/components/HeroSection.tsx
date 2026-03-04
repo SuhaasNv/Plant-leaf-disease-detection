@@ -9,6 +9,19 @@ import { RevealWaveImage } from "@/components/ui/reveal-wave-image";
 export function HeroSection() {
   const [ctaHovered, setCtaHovered] = useState(false);
 
+  // Fire each scramble trigger exactly when its parent element starts to appear,
+  // matching the Framer Motion entrance delays below.
+  const [scrambleBadge,    setScrambleBadge]    = useState(false);
+  const [scrambleLine1,    setScrambleLine1]    = useState(false);
+  const [scrambleLine2,    setScrambleLine2]    = useState(false);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setScrambleBadge(true),  850);   // badge delay
+    const t2 = setTimeout(() => setScrambleLine1(true),  1000);  // headline delay
+    const t3 = setTimeout(() => setScrambleLine2(true),  1200);  // slight stagger for line 2
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, []);
+
   return (
     <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center overflow-hidden bg-slate-950">
 
@@ -63,6 +76,7 @@ export function HeroSection() {
             duration={0.9}
             speed={0.025}
             characterSet="ABCDEFGHIJKLMNOPQRSTUVWXYZ-"
+            trigger={scrambleBadge}
           >
             AI-Powered Plant Disease Detection
           </TextScramble>
@@ -80,6 +94,7 @@ export function HeroSection() {
             className="text-3xl sm:text-5xl lg:text-6xl"
             duration={1.0}
             speed={0.035}
+            trigger={scrambleLine1}
           >
             Detect plant diseases
           </TextScramble>
@@ -88,7 +103,7 @@ export function HeroSection() {
             className="text-3xl sm:text-5xl lg:text-6xl"
             duration={1.0}
             speed={0.035}
-            style={{ animationDelay: "200ms" }}
+            trigger={scrambleLine2}
           >
             before they spread.
           </TextScramble>
