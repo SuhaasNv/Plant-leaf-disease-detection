@@ -4,6 +4,10 @@ A production-ready deep learning system for identifying plant diseases from leaf
 
 **Accuracy:** ~95% on 38 disease classes across 14 crop types
 
+### 🚀 Live Demo
+
+**[LeafScan AI →](https://plant-leaf-disease-detection-two.vercel.app/)** — Upload a leaf image and get an AI diagnosis in under a second.
+
 ---
 
 ## 📋 Table of Contents
@@ -74,13 +78,14 @@ This system uses a CNN to classify plant leaf images into 38 categories (healthy
 │  (.h5 format)   │
 └────────┬────────┘
          │
-         ├──────────────────────────────────────┐
-         ▼                                      ▼
-┌─────────────────┐                    ┌─────────────────┐
-│  Next.js + API  │  (recommended)     │  Streamlit App  │  (legacy)
-│  api/main.py    │  FastAPI backend   │  main.py        │
-│  frontend/      │  React UI          │  streamlit run  │
-└─────────────────┘                    └─────────────────┘
+         ├──────────────────────────────────────────────────────────────┐
+         ▼                                                              ▼
+┌─────────────────────────────┐                              ┌─────────────────┐
+│  Production (recommended)    │                              │  Streamlit App  │
+│  Vercel (Frontend)           │  POST /predict               │  main.py        │
+│  Next.js + React, LeafScan  │──────────────► Railway       │  (legacy)       │
+│  AI UI                      │               FastAPI+Docker │  streamlit run  │
+└─────────────────────────────┘                              └─────────────────┘
 ```
 
 ---
@@ -390,7 +395,11 @@ After deployment, the app will run at `https://<your-app>.streamlit.app`.
 
 ### Railway (Backend) + Vercel (Frontend)
 
-To deploy the **Next.js + FastAPI** stack:
+The live app is deployed as:
+- **Frontend:** [plant-leaf-disease-detection-two.vercel.app](https://plant-leaf-disease-detection-two.vercel.app/)
+- **Backend API:** Railway (FastAPI + Docker)
+
+To deploy the **Next.js + FastAPI** stack yourself:
 
 **1. Backend on Railway**
 
@@ -509,6 +518,7 @@ This project is open source and available for educational and research purposes.
 
 - Dataset: Plant Village dataset (or similar public dataset)
 - TensorFlow team for the deep learning framework
+- Vercel and Railway for hosting
 - Streamlit for the web application framework
 - Open source community for tools and libraries
 
@@ -529,11 +539,12 @@ This project is open source and available for educational and research purposes.
 
 ## 🔗 Related Resources
 
+- [**Live Demo — LeafScan AI**](https://plant-leaf-disease-detection-two.vercel.app/)
 - [TensorFlow Documentation](https://www.tensorflow.org/)
 - [Streamlit Documentation](https://docs.streamlit.io/)
 - [Plant Disease Detection Research](https://www.kaggle.com/datasets/abdallahalidev/plantvillage-dataset)
 
 ---
 
-**Last Updated:** January 2026  
+**Last Updated:** March 2026  
 **Version:** 1.0.0
