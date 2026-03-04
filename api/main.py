@@ -53,8 +53,28 @@ class _LegacyInputLayer(tf.keras.layers.InputLayer):
         return super().from_config(config)
 
 
+class _LegacyRescaling(tf.keras.layers.Rescaling):
+    """
+    Compatibility shim for models whose Rescaling layer was saved with a 'dtype'
+    config pointing to the now-unknown 'DTypePolicy' object. We map that to a
+    plain dtype string (e.g. 'float32') so modern Keras deserialization works.
+    """
+
+    @classmethod
+    def from_config(cls, config):
+        cfg = dict(config)
+        dtype_cfg = cfg.get("dtype")
+        if isinstance(dtype_cfg, dict) and dtype_cfg.get("class_name") == "DTypePolicy":
+            cfg["dtype"] = dtype_cfg.get("config", {}).get("name", "float32")
+        return super().from_config(cfg)
+
+
 def _load_legacy_model(path: Path) -> tf.keras.Model:
-    with tf.keras.utils.custom_object_scope({"InputLayer": _LegacyInputLayer}):
+    custom_objects = {
+        "InputLayer": _LegacyInputLayer,
+        "Rescaling": _LegacyRescaling,
+    }
+    with tf.keras.utils.custom_object_scope(custom_objects):
         return tf.keras.models.load_model(path)
 
 
