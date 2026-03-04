@@ -40,6 +40,22 @@ MIN_MODEL_BYTES = 50_000_000
 model: tf.keras.Model
 
 
+def _clean_legacy_config(config: dict) -> dict:
+    """
+    Normalize legacy Keras layer configs:
+    - Convert DTypePolicy dicts to plain dtype strings (e.g. 'float32')
+    - Drop obsolete arguments like 'data_format' that newer layers reject.
+    """
+    cfg = dict(config)
+    dtype_cfg = cfg.get("dtype")
+    if isinstance(dtype_cfg, dict) and dtype_cfg.get("class_name") == "DTypePolicy":
+        cfg["dtype"] = dtype_cfg.get("config", {}).get("name", "float32")
+    # These older preprocessing layers used to accept 'data_format' in config;
+    # newer versions often do not.
+    cfg.pop("data_format", None)
+    return cfg
+
+
 class _LegacyInputLayer(tf.keras.layers.InputLayer):
     """
     Compatibility shim for models saved with old tf.keras that used 'batch_shape'
@@ -48,9 +64,10 @@ class _LegacyInputLayer(tf.keras.layers.InputLayer):
 
     @classmethod
     def from_config(cls, config):
-        config = dict(config)
-        config.pop("batch_shape", None)
-        return super().from_config(config)
+        cfg = dict(config)
+        cfg.pop("batch_shape", None)
+        cfg = _clean_legacy_config(cfg)
+        return super().from_config(cfg)
 
 
 class _LegacyRescaling(tf.keras.layers.Rescaling):
@@ -62,10 +79,7 @@ class _LegacyRescaling(tf.keras.layers.Rescaling):
 
     @classmethod
     def from_config(cls, config):
-        cfg = dict(config)
-        dtype_cfg = cfg.get("dtype")
-        if isinstance(dtype_cfg, dict) and dtype_cfg.get("class_name") == "DTypePolicy":
-            cfg["dtype"] = dtype_cfg.get("config", {}).get("name", "float32")
+        cfg = _clean_legacy_config(config)
         return super().from_config(cfg)
 
 
@@ -77,12 +91,30 @@ class _LegacyRandomFlip(tf.keras.layers.RandomFlip):
 
     @classmethod
     def from_config(cls, config):
-        cfg = dict(config)
-        dtype_cfg = cfg.get("dtype")
-        if isinstance(dtype_cfg, dict) and dtype_cfg.get("class_name") == "DTypePolicy":
-            cfg["dtype"] = dtype_cfg.get("config", {}).get("name", "float32")
-        # Newer RandomFlip no longer accepts 'data_format' in from_config.
-        cfg.pop("data_format", None)
+        cfg = _clean_legacy_config(config)
+        return super().from_config(cfg)
+
+
+class _LegacyRandomRotation(tf.keras.layers.RandomRotation):
+    """
+    Compatibility shim for RandomRotation layers saved with legacy dtype policies and
+    obsolete 'data_format' argument.
+    """
+
+    @classmethod
+    def from_config(cls, config):
+        cfg = _clean_legacy_config(config)
+        return super().from_config(cfg)
+
+
+class _LegacyRandomZoom(tf.keras.layers.RandomZoom):
+    """
+    Compatibility shim for RandomZoom layers with legacy dtype/data_format config.
+    """
+
+    @classmethod
+    def from_config(cls, config):
+        cfg = _clean_legacy_config(config)
         return super().from_config(cfg)
 
 
@@ -91,6 +123,8 @@ def _load_legacy_model(path: Path) -> tf.keras.Model:
         "InputLayer": _LegacyInputLayer,
         "Rescaling": _LegacyRescaling,
         "RandomFlip": _LegacyRandomFlip,
+        "RandomRotation": _LegacyRandomRotation,
+        "RandomZoom": _LegacyRandomZoom,
     }
     with tf.keras.utils.custom_object_scope(custom_objects):
         return tf.keras.models.load_model(path)
