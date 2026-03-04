@@ -1,48 +1,116 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { TextScramble } from "@/components/ui/text-scramble";
 import { RevealWaveImage } from "@/components/ui/reveal-wave-image";
+import { cn } from "@/lib/utils";
+
+const HERO_IMAGES = ["/hero.jpg", "/hero2.jpg", "/hero3.jpg", "/hero4.jpg"];
+// How long each image stays visible before the transition begins
+const SLIDE_INTERVAL_MS = 7000;
+
+const WAVE_PROPS = {
+  waveSpeed: 0.1,
+  waveFrequency: 0.6,
+  waveAmplitude: 0.3,
+  revealRadius: 0.32,
+  revealSoftness: 0.9,
+  pixelSize: 2,
+  mouseRadius: 0.35,
+} as const;
 
 export function HeroSection() {
   const [ctaHovered, setCtaHovered] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  const nextIdx = (currentIdx + 1) % HERO_IMAGES.length;
+
+  const advance = useCallback(() => {
+    setCurrentIdx((i) => (i + 1) % HERO_IMAGES.length);
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(advance, SLIDE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [advance]);
 
   return (
     <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center overflow-hidden bg-slate-950">
 
-      {/* RevealWaveImage — full-screen background. Dithered B&W by default;
-          hover anywhere in the hero to reveal the original colour beneath. */}
+      {/* ── Slideshow ────────────────────────────────────────────────────────── */}
       <div className="absolute inset-0 z-0">
-        <RevealWaveImage
-          src="/hero.jpg"
-          waveSpeed={0.1}
-          waveFrequency={0.6}
-          waveAmplitude={0.3}
-          revealRadius={0.32}
-          revealSoftness={0.9}
-          pixelSize={2}
-          mouseRadius={0.35}
-          className="h-full w-full"
-        />
+
+        {/* Active canvas — fades + very gently scales in */}
+        <AnimatePresence mode="sync">
+          <motion.div
+            key={currentIdx}
+            initial={{ opacity: 0, scale: 1.04 }}
+            animate={{ opacity: 1, scale: 1.0 }}
+            exit={{ opacity: 0, scale: 0.97 }}
+            transition={{
+              opacity: { duration: 2.2, ease: "easeInOut" },
+              scale:   { duration: 2.5, ease: "easeInOut" },
+            }}
+            className="absolute inset-0"
+          >
+            <RevealWaveImage
+              src={HERO_IMAGES[currentIdx]}
+              {...WAVE_PROPS}
+              className="h-full w-full"
+            />
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Next canvas pre-warmed — mounted but invisible so its WebGL context
+            and texture are ready before it needs to appear. pointer-events-none
+            so it doesn't intercept mouse events. */}
+        <div
+          key={`prewarm-${nextIdx}`}
+          className="pointer-events-none absolute inset-0 opacity-0"
+          aria-hidden
+        >
+          <RevealWaveImage
+            src={HERO_IMAGES[nextIdx]}
+            {...WAVE_PROPS}
+            className="h-full w-full"
+          />
+        </div>
       </div>
 
-      {/* All overlays are pointer-events-none so mouse events reach the canvas */}
+      {/* ── Overlays (all pointer-events-none so mouse reaches the canvas) ──── */}
 
-      {/* Darkens the dithered image just enough for text to read cleanly */}
+      {/* Dark tint — keeps text readable over the dithered bg */}
       <div className="pointer-events-none absolute inset-0 z-10 bg-slate-950/30" />
 
-      {/* Soft green ambient glow — like light bleeding through the canopy */}
+      {/* Soft green ambient glow */}
       <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_65%_50%_at_50%_55%,rgba(34,197,94,0.09),transparent_70%)]" />
 
-      {/* Top gradient — nav blends seamlessly */}
+      {/* Top fade — nav edge blends in */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-28 bg-gradient-to-b from-slate-950/65 to-transparent" />
 
-      {/* Bottom gradient — fades into page content */}
+      {/* Bottom fade — eases into the page content below */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-20 bg-gradient-to-t from-slate-950/50 to-transparent" />
 
-      {/* Hero content — z-20 so it sits above all overlays */}
+      {/* ── Dot indicators ───────────────────────────────────────────────────── */}
+      <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 gap-2">
+        {HERO_IMAGES.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setCurrentIdx(i)}
+            aria-label={`Go to slide ${i + 1}`}
+            className={cn(
+              "h-1.5 rounded-full transition-all duration-500",
+              i === currentIdx
+                ? "w-6 bg-green-400"
+                : "w-1.5 bg-white/25 hover:bg-white/50",
+            )}
+          />
+        ))}
+      </div>
+
+      {/* ── Hero content ─────────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
