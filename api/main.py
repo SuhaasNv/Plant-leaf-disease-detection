@@ -40,6 +40,22 @@ MIN_MODEL_BYTES = 50_000_000
 model: tf.keras.Model
 
 
+class _DTypePolicyShim:
+    """
+    Lets Keras deserialize legacy DTypePolicy configs. Every layer (Conv2D, Dense, etc.)
+    has dtype: {'class_name': 'DTypePolicy', 'config': {'name': 'float32'}} in its config;
+    registering this in custom_object_scope fixes all of them at once.
+    """
+
+    @classmethod
+    def from_config(cls, config):
+        if not isinstance(config, dict):
+            return tf.keras.mixed_precision.Policy("float32")
+        inner = config.get("config", config)
+        name = inner.get("name", "float32") if isinstance(inner, dict) else "float32"
+        return tf.keras.mixed_precision.Policy(name)
+
+
 def _clean_legacy_config(config: dict) -> dict:
     """
     Normalize legacy Keras layer configs:
@@ -120,6 +136,7 @@ class _LegacyRandomZoom(tf.keras.layers.RandomZoom):
 
 def _load_legacy_model(path: Path) -> tf.keras.Model:
     custom_objects = {
+        "DTypePolicy": _DTypePolicyShim,
         "InputLayer": _LegacyInputLayer,
         "Rescaling": _LegacyRescaling,
         "RandomFlip": _LegacyRandomFlip,
