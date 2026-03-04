@@ -146,7 +146,8 @@ def _load_legacy_model(path: Path) -> tf.keras.Model:
         "RandomZoom": _LegacyRandomZoom,
     }
     with tf.keras.utils.custom_object_scope(custom_objects):
-        return tf.keras.models.load_model(path)
+        # compile=False skips optimizer deserialization entirely — safe for inference-only use
+        return tf.keras.models.load_model(path, compile=False)
 
 
 # Fallback model URL when bundled file is missing or a Git LFS pointer (~200 bytes).
