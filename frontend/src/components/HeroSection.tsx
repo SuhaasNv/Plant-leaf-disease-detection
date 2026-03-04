@@ -12,8 +12,13 @@ export function HeroSection() {
   return (
     <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center overflow-hidden bg-slate-950">
 
-      {/* RevealWaveImage — full-screen dithered B&W; hover to reveal colour */}
-      <div className="absolute inset-0 z-0">
+      {/* ── Step 1: background fades in (0 → 0.4s) ── */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1.8, ease: "easeOut" }}
+        className="absolute inset-0 z-0"
+      >
         <RevealWaveImage
           src="/hero.jpg"
           waveSpeed={0.1}
@@ -25,31 +30,33 @@ export function HeroSection() {
           mouseRadius={0.35}
           className="h-full w-full"
         />
-      </div>
+      </motion.div>
 
       {/* All overlays are pointer-events-none so mouse events reach the canvas */}
 
-      {/* Dark tint — keeps text readable over the dithered bg */}
+      {/* Dark tint */}
       <div className="pointer-events-none absolute inset-0 z-10 bg-slate-950/30" />
-
       {/* Soft green ambient glow */}
       <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_65%_50%_at_50%_55%,rgba(34,197,94,0.09),transparent_70%)]" />
-
-      {/* Top fade — nav edge blends in */}
+      {/* Top fade */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-28 bg-gradient-to-b from-slate-950/65 to-transparent" />
-
-      {/* Bottom fade — eases into the page content below */}
+      {/* Bottom fade */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-20 bg-gradient-to-t from-slate-950/50 to-transparent" />
 
-      {/* ── Hero content ─────────────────────────────────────────────────────── */}
+      {/* ── Step 2: content rises up after background is visible ── */}
       <motion.div
-        initial={{ opacity: 0, y: 50 }}
+        initial={{ opacity: 0, y: 36 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.9, ease: "easeOut" }}
+        transition={{ delay: 0.7, duration: 1.0, ease: "easeOut" }}
         className="relative z-20 flex flex-col items-center px-4 text-center sm:px-6"
       >
         {/* Badge */}
-        <span className="inline-flex items-center gap-2 rounded-full border border-green-500/30 bg-green-500/10 px-4 py-1.5 text-xs font-medium text-green-400 sm:text-sm">
+        <motion.span
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.85, duration: 0.7, ease: "easeOut" }}
+          className="inline-flex items-center gap-2 rounded-full border border-green-500/30 bg-green-500/10 px-4 py-1.5 text-xs font-medium text-green-400 sm:text-sm"
+        >
           <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
           <TextScramble
             as="span"
@@ -59,10 +66,15 @@ export function HeroSection() {
           >
             AI-Powered Plant Disease Detection
           </TextScramble>
-        </span>
+        </motion.span>
 
         {/* Headline */}
-        <h1 className="mt-5 flex flex-col items-center gap-0 bg-gradient-to-br from-white via-green-100 to-green-300 bg-clip-text font-bold tracking-tight text-transparent sm:mt-6">
+        <motion.h1
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.0, duration: 0.8, ease: "easeOut" }}
+          className="mt-5 flex flex-col items-center gap-0 bg-gradient-to-br from-white via-green-100 to-green-300 bg-clip-text font-bold tracking-tight text-transparent sm:mt-6"
+        >
           <TextScramble
             as="span"
             className="text-3xl sm:text-5xl lg:text-6xl"
@@ -80,19 +92,29 @@ export function HeroSection() {
           >
             before they spread.
           </TextScramble>
-        </h1>
+        </motion.h1>
 
         {/* Subtitle */}
-        <p className="mx-auto mt-4 max-w-lg text-base text-gray-400 sm:mt-6 sm:max-w-xl sm:text-lg">
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.2, duration: 0.7, ease: "easeOut" }}
+          className="mx-auto mt-4 max-w-lg text-base text-gray-400 sm:mt-6 sm:max-w-xl sm:text-lg"
+        >
           Upload a leaf image and get an accurate AI diagnosis in under a
           second —{" "}
           <span className="font-medium text-green-400">38 disease classes</span>{" "}
           across{" "}
           <span className="font-medium text-green-400">14 crop types</span>.
-        </p>
+        </motion.p>
 
         {/* CTAs */}
-        <div className="mt-8 flex w-full flex-col items-center gap-3 sm:mt-10 sm:w-auto sm:flex-row sm:gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.4, duration: 0.7, ease: "easeOut" }}
+          className="mt-8 flex w-full flex-col items-center gap-3 sm:mt-10 sm:w-auto sm:flex-row sm:gap-4"
+        >
           <Link
             href="/disease-recognition"
             onMouseEnter={() => setCtaHovered(true)}
@@ -117,7 +139,7 @@ export function HeroSection() {
           >
             Learn More
           </Link>
-        </div>
+        </motion.div>
       </motion.div>
     </section>
   );
