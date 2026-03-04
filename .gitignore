@@ -35,6 +35,10 @@ Thumbs.db
 # Streamlit secrets (contains MODEL_URL for Google Drive)
 .streamlit/secrets.toml
 
+# Saved web pages (may contain exposed secrets)
+*Vercel*.html
+*Vercel_files/
+
 # Optional
 *.log
 .pytest_cache/
