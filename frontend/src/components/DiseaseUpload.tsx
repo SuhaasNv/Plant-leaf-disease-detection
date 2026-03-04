@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
-// API returns {"class": string, "confidence": float} (or "cls" in some cases)
 type PredictionResult = {
   class?: string;
   cls?: string;
@@ -19,14 +19,47 @@ function formatLabel(raw: string | undefined | null): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Labels shown at different points in the progress bar
+const LOADING_LABELS = [
+  { at: 0,  text: "Scanning leaf…" },
+  { at: 35, text: "Analysing patterns…" },
+  { at: 70, text: "Identifying disease…" },
+  { at: 92, text: "Almost done…" },
+];
+
+function loadingLabel(pct: number) {
+  let label = LOADING_LABELS[0].text;
+  for (const { at, text } of LOADING_LABELS) {
+    if (pct >= at) label = text;
+  }
+  return label;
+}
+
+// ── progress animation ──────────────────────────────────────────────────────
+// Runs for ANIM_MS ms (0 → 100), applying an ease that rushes early then slows.
+const ANIM_MS   = 3400;
+const TICK_MS   = 30;
+
+function easeProgress(t: number) {
+  // Fast start, slow finish
+  return 1 - Math.pow(1 - t, 2.4);
+}
+
 export function DiseaseUpload({ apiUrl }: Props) {
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [result, setResult] = useState<PredictionResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [file,     setFile]     = useState<File | null>(null);
+  const [preview,  setPreview]  = useState<string | null>(null);
+  const [result,   setResult]   = useState<PredictionResult | null>(null);
+  const [loading,  setLoading]  = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error,    setError]    = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Refs to coordinate the parallel animation + API fetch
+  const animDoneRef    = useRef(false);
+  const pendingRef     = useRef<PredictionResult | null>(null);
+  const pendingErrRef  = useRef<string | null>(null);
+  const intervalRef    = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleFile = (selected: File | undefined) => {
     setResult(null);
@@ -42,14 +75,48 @@ export function DiseaseUpload({ apiUrl }: Props) {
     reader.readAsDataURL(selected);
   };
 
+  const revealResult = (res: PredictionResult | null, err: string | null) => {
+    setProgress(100);
+    setTimeout(() => {
+      setLoading(false);
+      setProgress(0);
+      if (err) setError(err);
+      else     setResult(res);
+    }, 350); // brief pause at 100% before showing result
+  };
+
   const handlePredict = async () => {
     if (!file) return;
     setLoading(true);
     setError(null);
     setResult(null);
+    setProgress(0);
+    animDoneRef.current   = false;
+    pendingRef.current    = null;
+    pendingErrRef.current = null;
 
+    // ── 1. Start progress animation ──────────────────────────────────────
+    const startTime = Date.now();
+    intervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const t   = Math.min(elapsed / ANIM_MS, 1);
+      const pct = Math.round(easeProgress(t) * 100);
+      setProgress(pct);
+
+      if (t >= 1) {
+        clearInterval(intervalRef.current!);
+        animDoneRef.current = true;
+
+        // If API already returned, reveal now
+        if (pendingRef.current !== null || pendingErrRef.current !== null) {
+          revealResult(pendingRef.current, pendingErrRef.current);
+        }
+      }
+    }, TICK_MS);
+
+    // ── 2. Fire API call in parallel ─────────────────────────────────────
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60_000);
+    const timeout    = setTimeout(() => controller.abort(), 60_000);
 
     try {
       const body = new FormData();
@@ -59,7 +126,7 @@ export function DiseaseUpload({ apiUrl }: Props) {
         body,
         signal: controller.signal,
       });
-      clearTimeout(timer);
+      clearTimeout(timeout);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -73,26 +140,43 @@ export function DiseaseUpload({ apiUrl }: Props) {
         );
       }
 
-      setResult(await res.json());
+      const data: PredictionResult = await res.json();
+
+      if (animDoneRef.current) {
+        revealResult(data, null);
+      } else {
+        pendingRef.current = data; // wait for animation to finish
+      }
     } catch (e) {
-      clearTimeout(timer);
-      if (!(e instanceof Error)) { setError("Something went wrong."); return; }
-      if (e.name === "AbortError")
-        setError("Request timed out — the model may still be loading. Try again.");
-      else if (e.message.toLowerCase().includes("fetch") || e.message.toLowerCase().includes("network"))
-        setError("Cannot reach the API. If local: run the backend on port 8000. If deployed: check Railway is up and NEXT_PUBLIC_API_URL is set.");
-      else
-        setError(e.message);
-    } finally {
-      setLoading(false);
+      clearTimeout(timeout);
+      clearInterval(intervalRef.current!);
+
+      let msg = "Something went wrong.";
+      if (e instanceof Error) {
+        if (e.name === "AbortError")
+          msg = "Request timed out — the model may still be loading. Try again.";
+        else if (e.message.toLowerCase().includes("fetch") || e.message.toLowerCase().includes("network"))
+          msg = "Cannot reach the API. If local: run the backend on port 8000. If deployed: check Railway is up and NEXT_PUBLIC_API_URL is set.";
+        else
+          msg = e.message;
+      }
+
+      if (animDoneRef.current) {
+        revealResult(null, msg);
+      } else {
+        pendingErrRef.current = msg;
+      }
     }
   };
 
   const handleClear = () => {
+    clearInterval(intervalRef.current!);
     setFile(null);
     setPreview(null);
     setResult(null);
     setError(null);
+    setLoading(false);
+    setProgress(0);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -106,8 +190,8 @@ export function DiseaseUpload({ apiUrl }: Props) {
       <div
         role="button"
         tabIndex={0}
-        onClick={() => inputRef.current?.click()}
-        onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
+        onClick={() => !loading && inputRef.current?.click()}
+        onKeyDown={(e) => e.key === "Enter" && !loading && inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={(e) => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
@@ -115,7 +199,7 @@ export function DiseaseUpload({ apiUrl }: Props) {
           dragging
             ? "border-green-400 bg-green-50"
             : "border-gray-200 bg-gray-50 hover:border-green-300 hover:bg-green-50/40"
-        }`}
+        } ${loading ? "pointer-events-none opacity-60" : ""}`}
       >
         <input
           ref={inputRef}
@@ -148,30 +232,17 @@ export function DiseaseUpload({ apiUrl }: Props) {
       </div>
 
       {/* Actions */}
-      {file && (
+      {file && !loading && (
         <div className="flex gap-3">
           <button
             onClick={handlePredict}
-            disabled={loading}
             className="flex-1 rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white
               shadow-sm transition-[transform,box-shadow,background-color] duration-150
               hover:-translate-y-0.5 hover:bg-green-700 hover:shadow-md
               active:translate-y-0 active:scale-[0.98] active:shadow-sm
-              disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0
               sm:flex-none sm:px-8"
           >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                {/* Arc spinner — cleaner than the filled-path version */}
-                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <circle cx="12" cy="12" r="9" className="opacity-20" />
-                  <path d="M12 3a9 9 0 0 1 9 9" />
-                </svg>
-                Analyzing…
-              </span>
-            ) : (
-              "Analyze"
-            )}
+            Analyze
           </button>
           <button
             onClick={handleClear}
@@ -185,67 +256,129 @@ export function DiseaseUpload({ apiUrl }: Props) {
         </div>
       )}
 
-      {/* Error */}
-      {error && (
-        <div className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 p-4">
-          <span className="mt-0.5 text-red-500">⚠</span>
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-
-      {/* Result — fades + slides up when it appears */}
-      {result && (
-        <div className="animate-fade-in-up rounded-2xl bg-white p-5 shadow-xl sm:p-8">
-          <p className="text-xs font-medium uppercase tracking-widest text-gray-400">
-            Diagnosis
-          </p>
-
-          {/* Class name + status badge */}
-          <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
-            <h3 className="text-xl font-bold leading-tight text-gray-900 sm:text-3xl">
-              {formatLabel(result["class"] ?? result.cls)}
-            </h3>
-            <span
-              className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
-                isHealthy ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
-              }`}
-            >
-              {isHealthy ? "Healthy ✓" : "Disease Detected"}
-            </span>
-          </div>
-
-          {/* Confidence bar */}
-          <div className="mt-5">
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm text-gray-400">Confidence</span>
-              <span
-                className={`text-2xl font-bold tabular-nums ${
-                  confidencePct >= 80
-                    ? "text-green-600"
-                    : confidencePct >= 60
-                      ? "text-yellow-500"
-                      : "text-red-500"
-                }`}
-              >
-                {confidencePct}%
+      {/* Progress bar — shown while loading */}
+      <AnimatePresence>
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
+            className="rounded-2xl border border-gray-100 bg-white p-5 shadow-lg sm:p-6"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-gray-700">
+                {loadingLabel(progress)}
+              </span>
+              <span className="text-sm font-bold tabular-nums text-green-600">
+                {progress}%
               </span>
             </div>
 
-            <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-gray-100">
-              <div
-                className={`h-full rounded-full transition-[width] duration-700 ease-out ${
-                  confidencePct >= 80
-                    ? "bg-green-500"
-                    : confidencePct >= 60
-                      ? "bg-yellow-400"
-                      : "bg-red-400"
-                }`}
-                style={{ width: `${confidencePct}%` }}
+            {/* Track */}
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
+              {/* Fill */}
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-green-500 to-green-400"
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: TICK_MS / 1000, ease: "linear" }}
               />
             </div>
-          </div>
-        </div>
-      )}
+
+            {/* Animated leaf dots */}
+            <div className="mt-3 flex items-center gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <motion.span
+                  key={i}
+                  animate={{ opacity: [0.3, 1, 0.3] }}
+                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.4 }}
+                  className="text-green-500 text-xs"
+                >
+                  🍃
+                </motion.span>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Error */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 p-4"
+          >
+            <span className="mt-0.5 text-red-500">⚠</span>
+            <p className="text-sm text-red-700">{error}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Result */}
+      <AnimatePresence>
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="rounded-2xl bg-white p-5 shadow-xl sm:p-8"
+          >
+            <p className="text-xs font-medium uppercase tracking-widest text-gray-400">
+              Diagnosis
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+              <h3 className="text-xl font-bold leading-tight text-gray-900 sm:text-3xl">
+                {formatLabel(result["class"] ?? result.cls)}
+              </h3>
+              <span
+                className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
+                  isHealthy ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
+                }`}
+              >
+                {isHealthy ? "Healthy ✓" : "Disease Detected"}
+              </span>
+            </div>
+
+            {/* Confidence bar */}
+            <div className="mt-5">
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm text-gray-400">Confidence</span>
+                <span
+                  className={`text-2xl font-bold tabular-nums ${
+                    confidencePct >= 80
+                      ? "text-green-600"
+                      : confidencePct >= 60
+                        ? "text-yellow-500"
+                        : "text-red-500"
+                  }`}
+                >
+                  {confidencePct}%
+                </span>
+              </div>
+
+              <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-gray-100">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${confidencePct}%` }}
+                  transition={{ duration: 0.9, ease: "easeOut", delay: 0.2 }}
+                  className={`h-full rounded-full ${
+                    confidencePct >= 80
+                      ? "bg-green-500"
+                      : confidencePct >= 60
+                        ? "bg-yellow-400"
+                        : "bg-red-400"
+                  }`}
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
