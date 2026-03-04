@@ -1,9 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+
+const HERO_IMAGES = ["/hero.jpg", "/hero2.jpg", "/hero3.jpg", "/hero4.jpg"];
+const SLIDE_INTERVAL_MS = 5000;
+const FADE_DURATION_MS = 1200;
 
 export const LampContainer = ({
   children,
@@ -12,6 +16,26 @@ export const LampContainer = ({
   children: React.ReactNode;
   className?: string;
 }) => {
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [prevIdx, setPrevIdx] = useState<number | null>(null);
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setFading(true);
+      setPrevIdx(currentIdx);
+      const next = (currentIdx + 1) % HERO_IMAGES.length;
+      setCurrentIdx(next);
+      // Clear the outgoing image after the crossfade completes
+      const cleanup = setTimeout(() => {
+        setPrevIdx(null);
+        setFading(false);
+      }, FADE_DURATION_MS);
+      return () => clearTimeout(cleanup);
+    }, SLIDE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [currentIdx]);
+
   return (
     <div
       className={cn(
@@ -20,17 +44,50 @@ export const LampContainer = ({
         className
       )}
     >
-      {/* Background hero image — blurred and darkened so lamp glow reads cleanly */}
+      {/* Background hero slideshow — crossfades between 4 images */}
       <div className="absolute inset-0 z-0">
+        {/* Outgoing image — fades out */}
+        {prevIdx !== null && fading && (
+          <Image
+            key={`prev-${prevIdx}`}
+            src={HERO_IMAGES[prevIdx]}
+            alt=""
+            fill
+            className="object-cover scale-105 blur-[3px] absolute inset-0 transition-opacity duration-[1200ms] ease-in-out opacity-0"
+          />
+        )}
+        {/* Incoming / current image — fades in */}
         <Image
-          src="/hero.jpg"
+          key={`curr-${currentIdx}`}
+          src={HERO_IMAGES[currentIdx]}
           alt=""
           fill
-          priority
-          className="object-cover scale-105 blur-[3px]"
+          priority={currentIdx === 0}
+          className={cn(
+            "object-cover scale-105 blur-[3px] absolute inset-0 transition-opacity ease-in-out",
+            fading
+              ? "opacity-100 duration-[1200ms]"
+              : "opacity-100 duration-[1200ms]"
+          )}
         />
-        {/* Dark overlay: deepens the image so the green lamp glow pops */}
+        {/* Dark overlay so lamp glow and text remain the clear focus */}
         <div className="absolute inset-0 bg-slate-950/65" />
+        {/* Slide indicator dots */}
+        <div className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 gap-2">
+          {HERO_IMAGES.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrentIdx(i)}
+              aria-label={`Go to slide ${i + 1}`}
+              className={cn(
+                "h-1.5 rounded-full transition-all duration-500",
+                i === currentIdx
+                  ? "w-6 bg-green-400"
+                  : "w-1.5 bg-white/30 hover:bg-white/50"
+              )}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Lamp light cone */}
