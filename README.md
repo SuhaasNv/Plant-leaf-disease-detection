@@ -1,6 +1,6 @@
 # 🌿 Plant Disease Recognition System
 
-A production-ready deep learning system for identifying plant diseases from leaf images using Convolutional Neural Networks (CNN). This project provides a complete pipeline from data preprocessing to model training, evaluation, and deployment via a Streamlit web application.
+A production-ready deep learning system for identifying plant diseases from leaf images using Convolutional Neural Networks (CNN). This project provides a complete pipeline from data preprocessing to model training, evaluation, and deployment via a **Next.js + FastAPI** web application (or legacy Streamlit app).
 
 **Accuracy:** ~95% on 38 disease classes across 14 crop types
 
@@ -37,7 +37,7 @@ A production-ready deep learning system for identifying plant diseases from leaf
 - **High Accuracy:** ~95% test accuracy on a balanced dataset
 - **Production-Ready Pipeline:** Centralized configuration and data pipeline for consistent preprocessing
 - **Reproducible Training:** Seed control, experiment logging, and config snapshots
-- **User-Friendly Interface:** Modern Streamlit web app with intuitive UI
+- **User-Friendly Interface:** Modern Next.js + React UI with FastAPI backend (or Streamlit)
 - **Fast Inference:** Model caching for instant predictions
 - **Comprehensive Testing:** Evaluation notebooks with confusion matrices and classification reports
 
@@ -74,11 +74,13 @@ This system uses a CNN to classify plant leaf images into 38 categories (healthy
 │  (.h5 format)   │
 └────────┬────────┘
          │
-         ▼
-┌─────────────────┐
-│  Streamlit App  │  ← main.py
-│  (Inference)    │     - Loads model once (cached)
-└─────────────────┘     - Normalizes input to [0,1]
+         ├──────────────────────────────────────┐
+         ▼                                      ▼
+┌─────────────────┐                    ┌─────────────────┐
+│  Next.js + API  │  (recommended)     │  Streamlit App  │  (legacy)
+│  api/main.py    │  FastAPI backend   │  main.py        │
+│  frontend/      │  React UI          │  streamlit run  │
+└─────────────────┘                    └─────────────────┘
 ```
 
 ---
@@ -89,11 +91,17 @@ This system uses a CNN to classify plant leaf images into 38 categories (healthy
 Plant-leaf-disease-detection/
 ├── config.py                 # Centralized configuration
 ├── data_pipeline.py          # Data preprocessing & augmentation
-├── main.py                   # Streamlit web application
+├── main.py                   # Streamlit web application (legacy)
+├── api/                      # FastAPI backend (recommended)
+│   ├── main.py               # /predict, /health, /classes endpoints
+│   └── requirements.txt      # API dependencies
+├── frontend/                 # Next.js + React UI
+│   ├── src/app/              # Pages: Home, About, Disease Recognition
+│   └── src/components/       # Nav, DiseaseUpload
 ├── split_valid_to_test.py    # Utility to split validation/test sets
 ├── Train_plant_disease.ipynb # Training notebook (canonical pipeline)
 ├── Test_plant_disease.ipynb  # Evaluation & testing notebook
-├── requirements.txt          # Python dependencies
+├── requirements.txt          # Python dependencies (Streamlit)
 ├── .gitignore               # Git ignore rules
 ├── README.md                # This file
 ├── .github/
@@ -109,7 +117,7 @@ Plant-leaf-disease-detection/
 │   ├── *_history.json       # Training history
 │   └── *_metadata.json      # Metrics & config snapshots
 │
-└── trained_plant_disease_model.h5  # Saved model (after training)
+└── Prev Models/             # Place trained_plant_disease_model.h5 here
 ```
 
 ---
@@ -155,17 +163,27 @@ Plant-leaf-disease-detection/
 
 ## 🚀 Quick Start
 
-### Running the Web App (Inference Only)
+### Running the Web App (Next.js + FastAPI — Recommended)
 
 If you already have a trained model:
 
-1. Place `trained_plant_disease_model.h5` in the project root
-2. Run the Streamlit app:
+1. Place `trained_plant_disease_model.h5` in `Prev Models/` (or project root)
+2. Start the API (from project root):
    ```bash
-   streamlit run main.py
+   pip install -r api/requirements.txt
+   uvicorn api.main:app --reload --port 8000
    ```
-3. Open your browser to the URL shown (typically `http://localhost:8501`)
-4. Navigate to **Disease Recognition** and upload a leaf image
+3. In another terminal, start the frontend:
+   ```bash
+   cd frontend && npm install && npm run dev
+   ```
+4. Open [http://localhost:3000](http://localhost:3000) and go to **Disease Recognition** to upload a leaf image
+
+### Running the Streamlit App (Legacy)
+
+1. Place `trained_plant_disease_model.h5` in `Prev Models/`
+2. Run: `streamlit run main.py`
+3. Open the URL shown (typically `http://localhost:8501`)
 
 ### Training Your Own Model
 
