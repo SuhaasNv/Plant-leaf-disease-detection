@@ -206,6 +206,31 @@ class PredictResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
 
+# Fraction of pixels that must look plant-like before we even run the model.
+_MIN_LEAF_PIXEL_RATIO = 0.08
+# Model confidence below this is treated as "not a recognisable leaf".
+_MIN_CONFIDENCE = 0.20
+
+
+def _is_likely_leaf(img: Image.Image) -> bool:
+    """
+    Fast colour heuristic: checks whether enough pixels fall in ranges
+    typical of plant leaves (green for healthy; yellow/brown for diseased).
+    No extra dependencies — uses only numpy + PIL which are already loaded.
+    """
+    arr = np.array(img.convert("RGB"), dtype=np.float32)
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+
+    # Healthy leaves: green channel clearly dominant
+    green = (g > 60) & (g > r * 1.05) & (g > b * 1.05)
+
+    # Diseased / dry leaves: yellow-green or brown tones
+    yellow_brown = (r > 80) & (g > 60) & (b < 130) & (r > b * 1.15) & (g > b * 1.05)
+
+    ratio = float(np.sum(green | yellow_brown)) / (arr.shape[0] * arr.shape[1])
+    return ratio >= _MIN_LEAF_PIXEL_RATIO
+
+
 @app.get("/health")
 def health():
     """Health check for Railway / load balancers."""
@@ -219,12 +244,25 @@ async def predict(file: UploadFile = File(...)):
 
     raw = await file.read()
     try:
-        img = Image.open(io.BytesIO(raw)).convert("RGB").resize(config.IMG_SIZE)
+        img = Image.open(io.BytesIO(raw)).convert("RGB")
     except Exception:
         raise HTTPException(status_code=400, detail="Could not decode image.")
 
-    arr = np.array(img, dtype=np.float32)  # model has built-in Rescaling layer — do NOT divide again
+    if not _is_likely_leaf(img):
+        raise HTTPException(
+            status_code=422,
+            detail="No plant leaf detected. Please upload a clear photo of a leaf.",
+        )
+
+    arr = np.array(img.resize(config.IMG_SIZE), dtype=np.float32)  # model has built-in Rescaling layer
     scores = model.predict(arr[np.newaxis], verbose=0)[0]
     idx = int(np.argmax(scores))
+    confidence = round(float(scores[idx]), 4)
 
-    return PredictResponse(cls=config.CLASS_NAMES[idx], confidence=round(float(scores[idx]), 4))
+    if confidence < _MIN_CONFIDENCE:
+        raise HTTPException(
+            status_code=422,
+            detail="Image not recognised as a plant leaf. Please upload a clear, well-lit leaf photo.",
+        )
+
+    return PredictResponse(cls=config.CLASS_NAMES[idx], confidence=confidence)
