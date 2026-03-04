@@ -38,6 +38,7 @@ A production-ready deep learning system for identifying plant diseases from leaf
 ## ✨ Features
 
 - **38 Disease Classes:** Detects diseases across 14 crop types (Apple, Corn, Tomato, Potato, Grape, Peach, Pepper, Strawberry, Blueberry, Soybean, Raspberry, Squash, Cherry, Orange)
+- **Non-Leaf Rejection:** Rejects out-of-distribution images (e.g. tools, people, random objects) before inference — colour heuristic + low-confidence guard
 - **High Accuracy:** ~95% test accuracy on a balanced dataset
 - **Production-Ready Pipeline:** Centralized configuration and data pipeline for consistent preprocessing
 - **Reproducible Training:** Seed control, experiment logging, and config snapshots
@@ -98,7 +99,7 @@ Plant-leaf-disease-detection/
 ├── data_pipeline.py          # Data preprocessing & augmentation
 ├── main.py                   # Streamlit web application (legacy)
 ├── api/                      # FastAPI backend (recommended)
-│   ├── main.py               # /predict, /health, /classes endpoints
+│   ├── main.py               # /predict, /health — includes non-leaf validation
 │   └── requirements.txt      # API dependencies
 ├── frontend/                 # Next.js + React UI
 │   ├── src/app/              # Pages: Home, About, Disease Recognition
@@ -236,6 +237,7 @@ See [Training the Model](#training-the-model) section below.
    - Supported formats: PNG, JPG, JPEG
    - Recommended size: < 50 MB (warnings shown for larger files)
    - Image is automatically resized to 128×128 pixels
+   - **Non-leaf images** (e.g. tools, people, random objects) are rejected with a clear error message before inference
 
 ### Testing the Model
 
