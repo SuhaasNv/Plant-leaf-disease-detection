@@ -183,14 +183,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Plant Disease Detection API", lifespan=lifespan)
 
-# CORS: use CORS_ORIGINS env (comma-separated) to restrict origins in production.
-# Defaults to * so the API works out of the box without extra config.
+# CORS: set CORS_ORIGINS env var (comma-separated) to restrict to specific origins.
+# Use "*" (the default) to allow all origins, or list URLs explicitly, e.g.:
+#   CORS_ORIGINS=https://your-app.vercel.app,https://localhost:3000
 _cors_env = os.getenv("CORS_ORIGINS", "*").strip()
-_origins_list = [o.strip() for o in _cors_env.split(",") if o.strip()]
+_use_wildcard = _cors_env == "*"
+_origins_list = ["*"] if _use_wildcard else [o.strip() for o in _cors_env.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins_list,
-    allow_methods=["GET", "POST"],
+    allow_credentials=False,
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
