@@ -14,6 +14,7 @@ A production-ready deep learning system for identifying plant diseases from leaf
 
 - [Features](#-features)
 - [Project Overview](#-project-overview)
+- [UI Screenshots](#-ui-screenshots)
 - [Architecture](#-architecture)
 - [Directory Structure](#-directory-structure)
 - [Installation](#-installation)
@@ -56,6 +57,28 @@ This system uses a CNN to classify plant leaf images into 38 categories (healthy
 - **Centralized Configuration:** Hyperparameters, paths, and class names in `config.py`
 - **Modular Design:** Separate modules for data, config, and application logic
 - **Experiment Tracking:** Automatic logging of training history and metrics
+
+---
+
+## 📸 UI Screenshots
+
+**Landing**
+
+![Landing page](images/landing1.png)
+
+![Landing page](images/landing2.png)
+
+**About**
+
+![About page](images/about.png)
+
+**Disease detection flow**
+
+![Selecting image](images/selectingimage.png)
+
+![Dashboard](images/dashboard.png)
+
+![Prediction result](images/predicted.png)
 
 ---
 
@@ -108,6 +131,7 @@ Plant-leaf-disease-detection/
 ├── Train_plant_disease.ipynb # Training notebook (canonical pipeline)
 ├── Test_plant_disease.ipynb  # Evaluation & testing notebook
 ├── requirements.txt          # Python dependencies (Streamlit)
+├── images/                  # UI screenshots (landing, about, detection flow)
 ├── .gitignore               # Git ignore rules
 ├── README.md                # This file
 ├── .github/
