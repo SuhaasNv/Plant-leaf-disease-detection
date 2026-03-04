@@ -14,6 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY config.py .
 COPY api/main.py .
 
+# Model: (a) copy from repo - uncomment if model is committed (e.g. via Git LFS):
+# COPY trained_plant_disease_model.h5 .
+# (b) Or set MODEL_URL env var to a direct download URL - app downloads at startup.
+
 EXPOSE 8000
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

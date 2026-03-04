@@ -388,6 +388,33 @@ To deploy the app to [Streamlit Community Cloud](https://share.streamlit.io/):
 
 After deployment, the app will run at `https://<your-app>.streamlit.app`.
 
+### Railway (Backend) + Vercel (Frontend)
+
+To deploy the **Next.js + FastAPI** stack:
+
+**1. Backend on Railway**
+
+- Push the repo to GitHub, then create a new project at [railway.app](https://railway.app) → **Deploy from GitHub repo**.
+- Railway will use the root `Dockerfile`.
+- **Model file** (choose one):
+  - **Option A:** Add `trained_plant_disease_model.h5` to the repo (e.g. [Git LFS](https://git-lfs.github.com/)), then uncomment the `COPY trained_plant_disease_model.h5 .` line in the Dockerfile.
+  - **Option B:** Host the model elsewhere (e.g. Google Drive “Share” → “Get link” → use the direct download URL). Add env var **`MODEL_URL`** = that URL. The app will download the model at startup.
+- In **Settings → Networking**, generate a public domain (e.g. `https://your-app.up.railway.app`).
+- Add env var **`CORS_ORIGINS`** = `https://your-frontend.vercel.app` (comma-separated if you have multiple origins).
+
+**2. Frontend on Vercel**
+
+- Import the repo at [vercel.com](https://vercel.com) → **Add New → Project**.
+- Set **Root Directory** to `frontend`.
+- Add env var **`NEXT_PUBLIC_API_URL`** = your Railway API URL (e.g. `https://your-app.up.railway.app`).
+- Deploy.
+
+**3. Wire them up**
+
+- Ensure `CORS_ORIGINS` on Railway includes your Vercel URL.
+- Ensure `NEXT_PUBLIC_API_URL` on Vercel points to your Railway URL.
+- Redeploy both if you change env vars.
+
 ---
 
 ## 🔬 Reproducibility

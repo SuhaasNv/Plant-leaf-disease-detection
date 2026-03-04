@@ -1,0 +1,30 @@
+# Frontend (not needed for API)
+frontend/
+node_modules/
+
+# Git and IDE
+.git
+.gitignore
+.cursor
+.vscode
+*.md
+
+# Python
+__pycache__
+*.pyc
+.pytest_cache
+.venv
+venv
+env
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints
+
+# Streamlit (legacy)
+.streamlit
+main.py
+
+# Misc
+.DS_Store
+*.log
