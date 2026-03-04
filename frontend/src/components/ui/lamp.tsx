@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,19 @@ export const LampContainer = ({
         className
       )}
     >
+      {/* Background hero image — blurred and darkened so lamp glow reads cleanly */}
+      <div className="absolute inset-0 z-0">
+        <Image
+          src="/hero.jpg"
+          alt=""
+          fill
+          priority
+          className="object-cover scale-105 blur-[3px]"
+        />
+        {/* Dark overlay: deepens the image so the green lamp glow pops */}
+        <div className="absolute inset-0 bg-slate-950/65" />
+      </div>
+
       {/* Lamp light cone */}
       <div className="relative z-0 flex w-full flex-1 scale-y-125 items-center justify-center isolate">
 
