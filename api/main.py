@@ -40,6 +40,24 @@ MIN_MODEL_BYTES = 50_000_000
 model: tf.keras.Model
 
 
+class _LegacyInputLayer(tf.keras.layers.InputLayer):
+    """
+    Compatibility shim for models saved with old tf.keras that used 'batch_shape'
+    in InputLayer config. Newer Keras versions reject this key, so we strip it.
+    """
+
+    @classmethod
+    def from_config(cls, config):
+        config = dict(config)
+        config.pop("batch_shape", None)
+        return super().from_config(config)
+
+
+def _load_legacy_model(path: Path) -> tf.keras.Model:
+    with tf.keras.utils.custom_object_scope({"InputLayer": _LegacyInputLayer}):
+        return tf.keras.models.load_model(path)
+
+
 def _get_model_path() -> Path:
     """Return path to a valid model file, downloading from MODEL_URL if needed."""
     if MODEL_PATH.exists() and MODEL_PATH.stat().st_size >= MIN_MODEL_BYTES:
@@ -63,7 +81,7 @@ def _get_model_path() -> Path:
 async def lifespan(app: FastAPI):
     global model
     path = _get_model_path()
-    model = tf.keras.models.load_model(path)
+    model = _load_legacy_model(path)
     yield
 
 
