@@ -80,7 +80,7 @@ export function DiseaseUpload({ apiUrl }: Props) {
       if (e.name === "AbortError")
         setError("Request timed out — the model may still be loading. Try again.");
       else if (e.message.toLowerCase().includes("fetch") || e.message.toLowerCase().includes("network"))
-        setError("Cannot reach the API. Make sure the backend is running on port 8000.");
+        setError("Cannot reach the API. If local: run the backend on port 8000. If deployed: check Railway is up and NEXT_PUBLIC_API_URL is set.");
       else
         setError(e.message);
     } finally {
