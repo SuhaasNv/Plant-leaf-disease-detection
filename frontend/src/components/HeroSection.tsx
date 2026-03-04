@@ -3,16 +3,24 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { TextScramble } from "@/components/ui/text-scramble";
 import { cn } from "@/lib/utils";
 
 const HERO_IMAGES = ["/hero.jpg", "/hero2.jpg", "/hero3.jpg", "/hero4.jpg"];
-const SLIDE_INTERVAL_MS = 5000;
+const SLIDE_INTERVAL_MS = 5500;
 
 export function HeroSection() {
   const [ctaHovered, setCtaHovered] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
+
+  // Preload all hero images so transitions don't cut on first appearance
+  useEffect(() => {
+    HERO_IMAGES.forEach((src) => {
+      const img = new window.Image();
+      img.src = src;
+    });
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -24,20 +32,28 @@ export function HeroSection() {
   return (
     <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center overflow-hidden bg-slate-950">
 
-      {/* Slideshow — all images stacked, only current is opaque */}
-      {HERO_IMAGES.map((src, i) => (
-        <Image
-          key={src}
-          src={src}
-          alt=""
-          fill
-          priority={i === 0}
-          className={cn(
-            "object-cover scale-[1.04] blur-[2px] transition-opacity duration-[1800ms] ease-in-out",
-            i === currentIdx ? "opacity-100" : "opacity-0"
-          )}
-        />
-      ))}
+      {/* Slideshow — AnimatePresence crossfades between images (mode=sync = overlap) */}
+      <AnimatePresence mode="sync">
+        <motion.div
+          key={currentIdx}
+          initial={{ opacity: 0, scale: 1.06 }}
+          animate={{ opacity: 1, scale: 1.03 }}
+          exit={{ opacity: 0, scale: 1.0 }}
+          transition={{
+            opacity: { duration: 1.6, ease: "easeInOut" },
+            scale:   { duration: 7,   ease: "easeOut" },  // slow Ken Burns zoom
+          }}
+          className="absolute inset-0"
+        >
+          <Image
+            src={HERO_IMAGES[currentIdx]}
+            alt=""
+            fill
+            priority={currentIdx === 0}
+            className="object-cover blur-[2px]"
+          />
+        </motion.div>
+      </AnimatePresence>
 
       {/* Dark base overlay */}
       <div className="absolute inset-0 bg-slate-950/55" />
