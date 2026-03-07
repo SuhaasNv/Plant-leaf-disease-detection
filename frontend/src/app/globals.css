@@ -1,28 +1,441 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #f9fafb;   /* gray-50  */
-  --color-foreground: #111827;   /* gray-900 */
-  --color-brand:      #16a34a;   /* green-600 */
-  --color-brand-dark: #15803d;   /* green-700 */
-  --color-brand-light:#f0fdf4;   /* green-50  */
-  --color-muted:      #4b5563;   /* gray-600  */
-  --color-card:       #ffffff;
-  --color-border:     #e5e7eb;   /* gray-200  */
+  --color-background: #f9fafb;
+  /* gray-50  */
+  --color-foreground: #111827;
+  /* gray-900 */
+  --color-brand: #16a34a;
+  /* green-600 */
+  --color-brand-dark: #15803d;
+  /* green-700 */
+  --color-brand-light: #f0fdf4;
+  /* green-50  */
+  --color-muted: #4b5563;
+  /* gray-600  */
+  --color-card: #ffffff;
+  --color-border: #e5e7eb;
+  /* gray-200  */
   --font-sans: var(--font-dm-sans), system-ui, sans-serif;
 
   --animate-fade-in-up: fade-in-up 0.35s ease-out both;
 }
 
 @keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0);    }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+}
 
 body {
   background-color: #f9fafb;
   color: #111827;
   font-family: var(--font-sans);
+}
+
+/* ===== Plant Assistant ===================================================== */
+
+/* Root: stacks panel above FAB, anchored bottom-right */
+.pa-root {
+  position: fixed;
+  bottom: 5rem;
+  /* clears mobile tab bar */
+  right: 1.25rem;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.6rem;
+  font-family: var(--font-sans);
+}
+
+@media (min-width: 640px) {
+  .pa-root {
+    bottom: 1.75rem;
+  }
+}
+
+/* FAB */
+.pa-fab {
+  position: relative;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.45);
+  /* hover / tap handled by framer-motion whileHover / whileTap */
+}
+
+/* Pulsing unread dot */
+.pa-unread {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f87171;
+  border: 2px solid #fff;
+  animation: pa-pulse 2s infinite;
+}
+
+@keyframes pa-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.5);
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px rgba(248, 113, 113, 0);
+  }
+}
+
+/* Panel */
+.pa-panel {
+  width: min(360px, calc(100vw - 2.5rem));
+  background: #fff;
+  border-radius: 1.25rem;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.05),
+    0 12px 40px rgba(0, 0, 0, 0.14);
+  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Spring animation expands from the FAB corner */
+  transform-origin: bottom right;
+}
+
+/* Header */
+.pa-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem 0.8rem;
+  background: linear-gradient(135deg, #f0fdf4 0%, #d1fae5 100%);
+  border-bottom: 1px solid #a7f3d0;
+  flex-shrink: 0;
+}
+
+.pa-header-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.pa-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  min-width: 0;
+}
+
+.pa-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #14532d;
+  margin: 0;
+}
+
+.pa-subtitle {
+  font-size: 0.7rem;
+  color: #4b5563;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pa-disease-tag {
+  font-weight: 600;
+  color: #15803d;
+}
+
+/* Message list */
+.pa-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.85rem 0.85rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 300px;
+  min-height: 140px;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+
+/* Thin custom scrollbar */
+.pa-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.pa-messages::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+/* Empty placeholder */
+.pa-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #9ca3af;
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 1.25rem 1rem;
+  line-height: 1.5;
+}
+
+.pa-empty-icon {
+  font-size: 1.5rem;
+  opacity: 0.6;
+}
+
+/* Bubble rows */
+.pa-row {
+  display: flex;
+}
+
+.pa-row-user {
+  justify-content: flex-end;
+}
+
+.pa-row-assistant {
+  justify-content: flex-start;
+}
+
+/* Bubbles */
+.pa-bubble {
+  max-width: 80%;
+  padding: 0.55rem 0.8rem;
+  border-radius: 1.1rem;
+  font-size: 0.83rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* User: green, pinched tail bottom-right */
+.pa-bubble-user {
+  background: #16a34a;
+  color: #fff;
+  border-bottom-right-radius: 0.2rem;
+}
+
+/* Assistant: light grey, pinched tail bottom-left, subtle outline */
+.pa-bubble-assistant {
+  background: #f3f4f6;
+  color: #111827;
+  border-bottom-left-radius: 0.2rem;
+  border: 1px solid #e9eaec;
+}
+
+/* Typing indicator (three dots) */
+.pa-typing {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.65rem 0.9rem;
+  min-width: 3.2rem;
+}
+
+.pa-typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pa-dot 1.3s infinite ease-in-out;
+}
+
+.pa-typing span:nth-child(1) {
+  animation-delay: 0s;
+  background: #9ca3af;
+}
+
+.pa-typing span:nth-child(2) {
+  animation-delay: 0.18s;
+  background: #6b7280;
+}
+
+.pa-typing span:nth-child(3) {
+  animation-delay: 0.36s;
+  background: #374151;
+}
+
+@keyframes pa-dot {
+
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+
+  30% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+
+/* Input row */
+.pa-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.8rem;
+  border-top: 1px solid #f0f0f0;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.pa-input {
+  flex: 1;
+  padding: 0.5rem 0.8rem;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 0.85rem;
+  font-size: 0.83rem;
+  font-family: inherit;
+  color: #111827;
+  background: #f9fafb;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pa-input::placeholder {
+  color: #9ca3af;
+}
+
+.pa-input:focus {
+  border-color: #16a34a;
+  background: #fff;
+}
+
+.pa-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pa-send {
+  flex-shrink: 0;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 0.75rem;
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.12s;
+}
+
+.pa-send:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.pa-send:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.pa-send:disabled {
+  background: #bbf7d0;
+  cursor: not-allowed;
+}
+
+/* Clear button (in header) */
+.pa-clear-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  margin-left: auto;
+}
+
+.pa-clear-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+/* Suggestion chips */
+.pa-chips-wrap {
+  padding: 0.2rem 0 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.pa-chips-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.pa-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.pa-chip {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1.5px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+  font-size: 0.78rem;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+  white-space: nowrap;
+}
+
+.pa-chip:hover:not(:disabled) {
+  background: #dcfce7;
+  border-color: #4ade80;
+  transform: translateY(-1px);
+}
+
+.pa-chip:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.pa-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
