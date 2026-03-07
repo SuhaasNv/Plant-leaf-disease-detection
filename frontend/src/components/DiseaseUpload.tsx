@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 export type PredictionItem = {
   label: string;
   confidence: number;
+  treatment?: string[];
+  prevention?: string[];
 };
 
 export type PredictionResult = {
@@ -248,7 +250,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: Predict
             <img
               src={preview}
               alt="Leaf preview"
-              className="mx-auto max-h-52 rounded-xl object-contain shadow-sm"
+              className="mx-auto max-h-48 sm:max-h-52 w-full sm:w-auto rounded-xl object-contain shadow-sm"
             />
             <p className="text-xs text-gray-400">{file?.name}</p>
           </div>
@@ -267,10 +269,10 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: Predict
 
       {/* Actions */}
       {file && !loading && (
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={handlePredict}
-            className="flex-1 rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white
+            className="flex-1 rounded-xl bg-green-600 py-3.5 sm:py-2.5 text-base sm:text-sm font-semibold text-white
               shadow-sm transition-[transform,box-shadow,background-color] duration-150
               hover:-translate-y-0.5 hover:bg-green-700 hover:shadow-md
               active:translate-y-0 active:scale-[0.98] active:shadow-sm
@@ -280,7 +282,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: Predict
           </button>
           <button
             onClick={handleClear}
-            className="rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-600
+            className="rounded-xl border border-gray-200 bg-white px-5 py-3.5 sm:py-2.5 text-base sm:text-sm font-medium text-gray-600
               transition-[transform,background-color] duration-150
               hover:-translate-y-0.5 hover:bg-gray-50
               active:translate-y-0 active:scale-[0.98]"
@@ -420,6 +422,39 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: Predict
                 );
               })}
             </div>
+
+            {/* Treatment & Prevention Card */}
+            {(result.predictions?.[0]?.treatment?.length || result.predictions?.[0]?.prevention?.length) ? (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.0, duration: 0.4 }}
+                className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-5 shadow-sm"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xl">🩺</span>
+                  <h3 className="font-bold text-blue-900">Treatment & Prevention</h3>
+                </div>
+                <div className="space-y-4">
+                  {result.predictions[0].treatment && result.predictions[0].treatment.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-blue-800 mb-2">How to Treat:</h4>
+                      <ul className="list-disc pl-5 space-y-1 text-sm text-blue-800/80">
+                        {result.predictions[0].treatment.map((it, i) => <li key={i}>{it}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {result.predictions[0].prevention && result.predictions[0].prevention.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-blue-800 mb-2">How to Prevent:</h4>
+                      <ul className="list-disc pl-5 space-y-1 text-sm text-blue-800/80">
+                        {result.predictions[0].prevention.map((it, i) => <li key={i}>{it}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ) : null}
 
             {/* Nudge to use Assistant */}
             {!isHealthy && (
