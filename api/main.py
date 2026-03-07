@@ -22,6 +22,7 @@ except ImportError:
 from fastapi import Depends, FastAPI, File, HTTPException, Request, Security, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
+from fastapi.responses import JSONResponse
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -375,6 +376,16 @@ async def predict(request: Request, file: UploadFile = File(...)):  # noqa: ARG0
             status_code=400,
             detail=f"Image dimensions too large ({w}×{h}). Maximum is {_MAX_IMAGE_DIM}×{_MAX_IMAGE_DIM} pixels.",
         )
+
+    # ── Image Quality Validation ──────────────────────────────────────────────
+    if w < 128 or h < 128:
+        return JSONResponse(status_code=400, content={"error": "Image quality too low. Please upload a clear close-up leaf photo."})
+    
+    img_gray = np.array(img.convert("L"))
+    if np.mean(img_gray) < 20: 
+        return JSONResponse(status_code=400, content={"error": "Image quality too low. Please upload a clear close-up leaf photo."})
+    if np.var(img_gray) < 10: 
+        return JSONResponse(status_code=400, content={"error": "Image quality too low. Please upload a clear close-up leaf photo."})
 
     # ── Leaf colour heuristic ─────────────────────────────────────────────────
     if not _is_likely_leaf(img):

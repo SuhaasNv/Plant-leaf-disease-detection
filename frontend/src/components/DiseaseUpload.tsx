@@ -160,7 +160,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: Predict
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        const detail = err.detail;
+        const detail = err.detail || err.error;
         throw new Error(
           typeof detail === "string"
             ? detail
