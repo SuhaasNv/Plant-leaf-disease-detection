@@ -5,8 +5,14 @@ import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import google.genai as genai
+from google.genai import types as genai_types
 import numpy as np
 import tensorflow as tf
+from dotenv import load_dotenv
+
+# Load api/.env (local dev). In production (Railway) env vars are set via the dashboard.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False)
 
 # gdown handles Google Drive large-file downloads (Drive shows virus-scan page for >100MB)
 try:
@@ -182,6 +188,14 @@ async def lifespan(app: FastAPI):
     global model
     path = _get_model_path()
     model = _load_legacy_model(path)
+    # Log the first layer so the normalization contract is visible at every startup.
+    first_layer = model.layers[0]
+    scale = getattr(first_layer, "scale", "N/A")
+    print(
+        f"[startup] model loaded from {path.name!r} | "
+        f"first_layer={type(first_layer).__name__} scale={scale} | "
+        f"expected_input_range=[0, 255]"
+    )
     yield
 
 
@@ -246,6 +260,15 @@ class PredictResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
 
+class ChatRequest(BaseModel):
+    disease: str
+    message: str
+
+
+class ChatResponse(BaseModel):
+    reply: str
+
+
 # Fraction of pixels that must look plant-like before we even run the model.
 _MIN_LEAF_PIXEL_RATIO = 0.08
 # Model confidence below this is treated as "not a recognisable leaf".
@@ -277,6 +300,42 @@ def health():
     return {"status": "ok"}
 
 
+_SYSTEM_PROMPT = (
+    "You are a practical farming assistant. "
+    "The farmer's plant has been diagnosed with: {disease}.\n\n"
+    "Answer in plain, simple language — no scientific jargon unless truly needed. "
+    "Do NOT use markdown bold formatting (like **). "
+    "Keep every reply under 120 words. "
+    "Structure your answer with these three short bullet sections:\n"
+    "- Severity: Is this serious? Will it spread fast or destroy the crop?\n"
+    "- Treatment: What should the farmer do RIGHT NOW to stop it?\n"
+    "- Prevention: How to stop it coming back next season?\n"
+    "Be direct and practical. Skip lengthy explanations."
+)
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(body: ChatRequest):
+    """Ask Gemini 2.5 Flash about the detected plant disease."""
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured on the server.")
+
+    client = genai.Client(api_key=api_key)
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=body.message,
+            config=genai_types.GenerateContentConfig(
+                system_instruction=_SYSTEM_PROMPT.format(disease=body.disease),
+            ),
+        )
+        return ChatResponse(reply=response.text)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Gemini API error: {exc}") from exc
+
+
 @app.post(
     "/predict",
     response_model=PredictResponse,
@@ -293,6 +352,7 @@ async def predict(request: Request, file: UploadFile = File(...)):  # noqa: ARG0
 
     # ── Read and hard-limit file size ─────────────────────────────────────────
     raw = await file.read()
+    print(f"[predict] received: filename={file.filename!r} content_type={file.content_type!r} bytes={len(raw)}")
     _validate_image_bytes(raw)
 
     # ── Decode image ──────────────────────────────────────────────────────────
@@ -317,10 +377,29 @@ async def predict(request: Request, file: UploadFile = File(...)):  # noqa: ARG0
         )
 
     # ── Model inference ───────────────────────────────────────────────────────
-    arr = np.array(img.resize(config.IMG_SIZE), dtype=np.float32)
+    # PIL resize takes (width, height); config.IMG_SIZE is (H, W) = (128, 128).
+    img_h, img_w = config.IMG_SIZE
+    img_resized = img.resize((img_w, img_h), resample=Image.BILINEAR)
+
+    # Input range: [0, 255] float32.
+    # The model's first layer is Rescaling(1/255), so normalization happens inside
+    # the model — do NOT divide here or predictions will be wrong (double-normalized).
+    arr = np.array(img_resized, dtype=np.float32)
+
+    print(
+        f"[predict] file={file.filename!r} "
+        f"original_size={img.size} resized=({img_w},{img_h}) "
+        f"arr_shape={arr.shape} arr_min={arr.min():.1f} arr_max={arr.max():.1f}"
+    )
+
     scores = model.predict(arr[np.newaxis], verbose=0)[0]
     idx = int(np.argmax(scores))
     confidence = round(float(scores[idx]), 4)
+
+    # Log top-3 for debugging
+    top3_idx = np.argsort(scores)[::-1][:3]
+    top3 = [(config.CLASS_NAMES[i], round(float(scores[i]), 4)) for i in top3_idx]
+    print(f"[predict] chosen_idx={idx} class={config.CLASS_NAMES[idx]!r} confidence={confidence} top3={top3}")
 
     if confidence < _MIN_CONFIDENCE:
         raise HTTPException(

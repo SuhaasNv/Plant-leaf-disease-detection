@@ -116,5 +116,8 @@ export async function POST(req: NextRequest) {
 
   // ── Return upstream response verbatim ────────────────────────────────────
   const data = await res.json().catch(() => ({ detail: "Unexpected response from prediction service." }));
-  return NextResponse.json(data, { status: res.status });
+  return NextResponse.json(data, {
+    status: res.status,
+    headers: { "Cache-Control": "no-store" },
+  });
 }

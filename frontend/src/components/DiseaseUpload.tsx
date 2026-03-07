@@ -19,7 +19,7 @@ function formatLabel(raw: string | undefined | null): string {
 
 // Labels shown at different points in the progress bar
 const LOADING_LABELS = [
-  { at: 0,  text: "Scanning leaf…" },
+  { at: 0, text: "Scanning leaf…" },
   { at: 35, text: "Analysing patterns…" },
   { at: 70, text: "Identifying disease…" },
   { at: 92, text: "Almost done…" },
@@ -35,29 +35,33 @@ function loadingLabel(pct: number) {
 
 // ── progress animation ──────────────────────────────────────────────────────
 // Runs for ANIM_MS ms (0 → 100), applying an ease that rushes early then slows.
-const ANIM_MS   = 3400;
-const TICK_MS   = 30;
+const ANIM_MS = 3400;
+const TICK_MS = 30;
 
 function easeProgress(t: number) {
   // Fast start, slow finish
   return 1 - Math.pow(1 - t, 2.4);
 }
 
-export function DiseaseUpload() {
-  const [file,     setFile]     = useState<File | null>(null);
-  const [preview,  setPreview]  = useState<string | null>(null);
-  const [result,   setResult]   = useState<PredictionResult | null>(null);
-  const [loading,  setLoading]  = useState(false);
+export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | null) => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [result, setResult] = useState<PredictionResult | null>(null);
+  const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [error,    setError]    = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Mirror of `file` state in a ref — guarantees handlePredict always closes
+  // over the *current* file even if React batches the state update.
+  const fileRef = useRef<File | null>(null);
+
   // Refs to coordinate the parallel animation + API fetch
-  const animDoneRef    = useRef(false);
-  const pendingRef     = useRef<PredictionResult | null>(null);
-  const pendingErrRef  = useRef<string | null>(null);
-  const intervalRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const animDoneRef = useRef(false);
+  const pendingRef = useRef<PredictionResult | null>(null);
+  const pendingErrRef = useRef<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleFile = (selected: File | undefined) => {
     setResult(null);
@@ -67,6 +71,15 @@ export function DiseaseUpload() {
       setError("Please select an image file (PNG, JPG, JPEG).");
       return;
     }
+
+    // ── FIX: reset the input value immediately so that picking the same
+    // filename a second time still fires onChange (browser suppresses it
+    // otherwise because the value hasn't "changed").
+    if (inputRef.current) inputRef.current.value = "";
+
+    console.log(`[upload] file selected: name=${selected.name} size=${selected.size} type=${selected.type}`);
+
+    fileRef.current = selected;   // keep ref in sync before React re-render
     setFile(selected);
     const reader = new FileReader();
     reader.onloadend = () => setPreview(reader.result as string);
@@ -78,26 +91,36 @@ export function DiseaseUpload() {
     setTimeout(() => {
       setLoading(false);
       setProgress(0);
-      if (err) setError(err);
-      else     setResult(res);
+      if (err) {
+        setError(err);
+      } else {
+        setResult(res);
+        onDisease?.(res?.["class"] ?? res?.cls ?? null);
+      }
     }, 350); // brief pause at 100% before showing result
   };
 
   const handlePredict = async () => {
-    if (!file) return;
+    // ── FIX: read from ref, not state, to guarantee the latest File object
+    // (avoids stale closure if React batched the setFile update).
+    const currentFile = fileRef.current;
+    if (!currentFile) return;
+
+    console.log(`[upload] predict triggered: file=${currentFile.name} size=${currentFile.size}`);
+
     setLoading(true);
     setError(null);
     setResult(null);
     setProgress(0);
-    animDoneRef.current   = false;
-    pendingRef.current    = null;
+    animDoneRef.current = false;
+    pendingRef.current = null;
     pendingErrRef.current = null;
 
     // ── 1. Start progress animation ──────────────────────────────────────
     const startTime = Date.now();
     intervalRef.current = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      const t   = Math.min(elapsed / ANIM_MS, 1);
+      const t = Math.min(elapsed / ANIM_MS, 1);
       const pct = Math.round(easeProgress(t) * 100);
       setProgress(pct);
 
@@ -114,16 +137,22 @@ export function DiseaseUpload() {
 
     // ── 2. Fire API call in parallel ─────────────────────────────────────
     const controller = new AbortController();
-    const timeout    = setTimeout(() => controller.abort(), 60_000);
+    const timeout = setTimeout(() => controller.abort(), 60_000);
 
     try {
       const body = new FormData();
-      body.append("file", file);
+      body.append("file", currentFile);
+
+      console.log(`[upload] FormData ready: appended file=${currentFile.name} size=${currentFile.size}`);
+
       const res = await fetch("/api/predict", {
         method: "POST",
         body,
+        cache: "no-store",
         signal: controller.signal,
       });
+
+      console.log(`[upload] fetch response: status=${res.status}`);
       clearTimeout(timeout);
 
       if (!res.ok) {
@@ -139,6 +168,8 @@ export function DiseaseUpload() {
       }
 
       const data: PredictionResult = await res.json();
+      const label = data["class"] ?? data.cls;
+      console.log(`[upload] prediction received: class=${label} confidence=${data.confidence}`);
 
       if (animDoneRef.current) {
         revealResult(data, null);
@@ -169,12 +200,14 @@ export function DiseaseUpload() {
 
   const handleClear = () => {
     clearInterval(intervalRef.current!);
+    fileRef.current = null;
     setFile(null);
     setPreview(null);
     setResult(null);
     setError(null);
     setLoading(false);
     setProgress(0);
+    onDisease?.(null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -193,11 +226,10 @@ export function DiseaseUpload() {
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={(e) => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
-        className={`flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${
-          dragging
-            ? "border-green-400 bg-green-50"
-            : "border-gray-200 bg-gray-50 hover:border-green-300 hover:bg-green-50/40"
-        } ${loading ? "pointer-events-none opacity-60" : ""}`}
+        className={`flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${dragging
+          ? "border-green-400 bg-green-50"
+          : "border-gray-200 bg-gray-50 hover:border-green-300 hover:bg-green-50/40"
+          } ${loading ? "pointer-events-none opacity-60" : ""}`}
       >
         <input
           ref={inputRef}
@@ -334,9 +366,8 @@ export function DiseaseUpload() {
                 {formatLabel(result["class"] ?? result.cls)}
               </h3>
               <span
-                className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
-                  isHealthy ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
-                }`}
+                className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${isHealthy ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
+                  }`}
               >
                 {isHealthy ? "Healthy ✓" : "Disease Detected"}
               </span>
@@ -347,13 +378,12 @@ export function DiseaseUpload() {
               <div className="flex items-baseline justify-between">
                 <span className="text-sm text-gray-400">Confidence</span>
                 <span
-                  className={`text-2xl font-bold tabular-nums ${
-                    confidencePct >= 80
-                      ? "text-green-600"
-                      : confidencePct >= 60
-                        ? "text-yellow-500"
-                        : "text-red-500"
-                  }`}
+                  className={`text-2xl font-bold tabular-nums ${confidencePct >= 80
+                    ? "text-green-600"
+                    : confidencePct >= 60
+                      ? "text-yellow-500"
+                      : "text-red-500"
+                    }`}
                 >
                   {confidencePct}%
                 </span>
@@ -364,16 +394,30 @@ export function DiseaseUpload() {
                   initial={{ width: 0 }}
                   animate={{ width: `${confidencePct}%` }}
                   transition={{ duration: 0.9, ease: "easeOut", delay: 0.2 }}
-                  className={`h-full rounded-full ${
-                    confidencePct >= 80
-                      ? "bg-green-500"
-                      : confidencePct >= 60
-                        ? "bg-yellow-400"
-                        : "bg-red-400"
-                  }`}
+                  className={`h-full rounded-full ${confidencePct >= 80
+                    ? "bg-green-500"
+                    : confidencePct >= 60
+                      ? "bg-yellow-400"
+                      : "bg-red-400"
+                    }`}
                 />
               </div>
             </div>
+
+            {/* Nudge to use Assistant */}
+            {!isHealthy && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.2, duration: 0.4 }}
+                className="mt-6 flex items-center gap-3 rounded-lg bg-green-50 p-4 border border-green-100"
+              >
+                <span className="text-xl">💡</span>
+                <p className="text-sm text-green-800">
+                  Want to know how to treat this? Click the <strong>Plant Assistant</strong> icon in the bottom right for advice!
+                </p>
+              </motion.div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
