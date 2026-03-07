@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { DiseaseUpload } from "@/components/DiseaseUpload";
+import { DiseaseUpload, type PredictionItem } from "@/components/DiseaseUpload";
 import { PlantAssistant } from "@/components/PlantAssistant";
 
 export default function DiseaseRecognitionPage() {
-  const [detectedDisease, setDetectedDisease] = useState<string | null>(null);
+  const [detectedPredictions, setDetectedPredictions] = useState<PredictionItem[] | null>(null);
 
   return (
     <>
@@ -27,7 +27,7 @@ export default function DiseaseRecognitionPage() {
 
         {/* Upload card */}
         <div className="mt-8 rounded-2xl bg-white p-4 shadow-xl sm:mt-10 sm:p-8">
-          <DiseaseUpload onDisease={setDetectedDisease} />
+          <DiseaseUpload onDisease={setDetectedPredictions} />
         </div>
 
         {/* Footer hint */}
@@ -38,7 +38,7 @@ export default function DiseaseRecognitionPage() {
       </div>
 
       {/* Floating AI assistant — always rendered so it persists across tab focus */}
-      <PlantAssistant detectedDisease={detectedDisease} />
+      <PlantAssistant detectedPredictions={detectedPredictions} />
     </>
   );
 }

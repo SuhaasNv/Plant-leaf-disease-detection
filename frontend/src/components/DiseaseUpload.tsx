@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-type PredictionResult = {
-  class?: string;
-  cls?: string;
+export type PredictionItem = {
+  label: string;
   confidence: number;
+  treatment?: string[];
+  prevention?: string[];
+};
+
+export type PredictionResult = {
+  predictions: PredictionItem[];
 };
 
 function formatLabel(raw: string | undefined | null): string {
@@ -43,7 +48,7 @@ function easeProgress(t: number) {
   return 1 - Math.pow(1 - t, 2.4);
 }
 
-export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | null) => void }) {
+export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: PredictionItem[] | null) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [result, setResult] = useState<PredictionResult | null>(null);
@@ -52,6 +57,66 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Cleanup camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
+  const startCamera = async () => {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      streamRef.current = stream;
+      setIsCameraOpen(true);
+      // We set srcObject inside a small timeout or wait for React to render the <video>
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 50);
+    } catch (e: any) {
+      setError("Unable to access camera. Please allow camera permissions.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setIsCameraOpen(false);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setError("Failed to capture image.");
+        stopCamera();
+        return;
+      }
+      const file = new File([blob], "camera_capture.jpg", { type: "image/jpeg" });
+      stopCamera();
+      handleFile(file);
+    }, "image/jpeg", 0.9);
+  };
 
   // Mirror of `file` state in a ref — guarantees handlePredict always closes
   // over the *current* file even if React batches the state update.
@@ -95,7 +160,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
         setError(err);
       } else {
         setResult(res);
-        onDisease?.(res?.["class"] ?? res?.cls ?? null);
+        onDisease?.(res?.predictions ?? null);
       }
     }, 350); // brief pause at 100% before showing result
   };
@@ -157,7 +222,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        const detail = err.detail;
+        const detail = err.detail || err.error;
         throw new Error(
           typeof detail === "string"
             ? detail
@@ -168,8 +233,8 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
       }
 
       const data: PredictionResult = await res.json();
-      const label = data["class"] ?? data.cls;
-      console.log(`[upload] prediction received: class=${label} confidence=${data.confidence}`);
+      const label = data.predictions?.[0]?.label ?? "Unknown";
+      console.log(`[upload] prediction received: class=${label} confidence=${data.predictions?.[0]?.confidence}`);
 
       if (animDoneRef.current) {
         revealResult(data, null);
@@ -200,6 +265,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
 
   const handleClear = () => {
     clearInterval(intervalRef.current!);
+    stopCamera();
     fileRef.current = null;
     setFile(null);
     setPreview(null);
@@ -211,62 +277,102 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const confidencePct = result ? Math.round(result.confidence * 100) : 0;
-  const isHealthy = (result?.["class"] ?? result?.cls)?.toLowerCase().includes("healthy");
+  const topPrediction = result?.predictions?.[0];
+  const confidencePct = topPrediction ? Math.round(topPrediction.confidence * 100) : 0;
+  const isHealthy = topPrediction?.label?.toLowerCase().includes("healthy");
 
   return (
     <div className="space-y-4">
 
-      {/* Drop zone */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => !loading && inputRef.current?.click()}
-        onKeyDown={(e) => e.key === "Enter" && !loading && inputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
-        className={`flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${dragging
-          ? "border-green-400 bg-green-50"
-          : "border-gray-200 bg-gray-50 hover:border-green-300 hover:bg-green-50/40"
-          } ${loading ? "pointer-events-none opacity-60" : ""}`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/jpg"
-          onChange={(e) => handleFile(e.target.files?.[0])}
-          className="hidden"
-        />
+      {/* Drop zone / Camera View */}
+      {isCameraOpen ? (
+        <div className="relative flex min-h-56 flex-col items-center justify-center overflow-hidden rounded-2xl bg-black shadow-inner">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            className="h-64 w-full object-cover sm:h-80"
+          />
+          <div className="absolute bottom-4 flex gap-3">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); capturePhoto(); }}
+              className="rounded-full bg-green-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg hover:bg-green-700 active:scale-95 transition-transform"
+            >
+              Take Photo
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); stopCamera(); }}
+              className="rounded-full bg-white/20 backdrop-blur-md px-6 py-2.5 text-sm font-semibold text-white shadow-lg hover:bg-white/30 active:scale-95 transition-transform border border-white/30"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => !loading && inputRef.current?.click()}
+          onKeyDown={(e) => e.key === "Enter" && !loading && inputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
+          className={`flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${dragging
+            ? "border-green-400 bg-green-50"
+            : "border-gray-200 bg-gray-50 hover:border-green-300 hover:bg-green-50/40"
+            } ${loading ? "pointer-events-none opacity-60" : ""}`}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg"
+            onChange={(e) => handleFile(e.target.files?.[0])}
+            className="hidden"
+          />
 
-        {preview ? (
-          <div className="space-y-3">
-            <img
-              src={preview}
-              alt="Leaf preview"
-              className="mx-auto max-h-52 rounded-xl object-contain shadow-sm"
-            />
-            <p className="text-xs text-gray-400">{file?.name}</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-2xl">
-              🍃
+          {preview ? (
+            <div className="space-y-3">
+              <img
+                src={preview}
+                alt="Leaf preview"
+                className="mx-auto max-h-48 sm:max-h-52 w-full sm:w-auto rounded-xl object-contain shadow-sm"
+              />
+              <p className="text-xs text-gray-400">{file?.name}</p>
             </div>
-            <p className="font-medium text-gray-700">
-              {dragging ? "Drop it here" : "Drag & drop or click to upload"}
-            </p>
-            <p className="text-sm text-gray-400">PNG, JPG or JPEG</p>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-2xl">
+                🍃
+              </div>
+              <div className="space-y-1">
+                <p className="font-medium text-gray-700">
+                  {dragging ? "Drop it here" : "Drag & drop or click to upload"}
+                </p>
+                <p className="text-sm text-gray-400">PNG, JPG or JPEG</p>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startCamera();
+                }}
+                className="inline-flex mt-2 items-center gap-2 rounded-lg bg-green-100 px-4 py-2 text-sm font-medium text-green-700 transition-[transform,colors] hover:bg-green-200 active:scale-95"
+              >
+                <span>📷</span> Open Camera
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       {file && !loading && (
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={handlePredict}
-            className="flex-1 rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white
+            className="flex-1 rounded-xl bg-green-600 py-3.5 sm:py-2.5 text-base sm:text-sm font-semibold text-white
               shadow-sm transition-[transform,box-shadow,background-color] duration-150
               hover:-translate-y-0.5 hover:bg-green-700 hover:shadow-md
               active:translate-y-0 active:scale-[0.98] active:shadow-sm
@@ -276,7 +382,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
           </button>
           <button
             onClick={handleClear}
-            className="rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-600
+            className="rounded-xl border border-gray-200 bg-white px-5 py-3.5 sm:py-2.5 text-base sm:text-sm font-medium text-gray-600
               transition-[transform,background-color] duration-150
               hover:-translate-y-0.5 hover:bg-gray-50
               active:translate-y-0 active:scale-[0.98]"
@@ -363,7 +469,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
 
             <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
               <h3 className="text-xl font-bold leading-tight text-gray-900 sm:text-3xl">
-                {formatLabel(result["class"] ?? result.cls)}
+                {formatLabel(topPrediction?.label)}
               </h3>
               <span
                 className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${isHealthy ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
@@ -373,36 +479,82 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
               </span>
             </div>
 
-            {/* Confidence bar */}
-            <div className="mt-5">
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm text-gray-400">Confidence</span>
-                <span
-                  className={`text-2xl font-bold tabular-nums ${confidencePct >= 80
-                    ? "text-green-600"
-                    : confidencePct >= 60
-                      ? "text-yellow-500"
-                      : "text-red-500"
-                    }`}
-                >
-                  {confidencePct}%
-                </span>
-              </div>
+            {/* Predictions List */}
+            <div className="mt-6 lg:mt-8 space-y-3">
+              {result.predictions?.slice().sort((a, b) => b.confidence - a.confidence).map((pred, idx) => {
+                const predPct = Math.round(pred.confidence * 100);
+                const isTop = idx === 0;
 
-              <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-gray-100">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${confidencePct}%` }}
-                  transition={{ duration: 0.9, ease: "easeOut", delay: 0.2 }}
-                  className={`h-full rounded-full ${confidencePct >= 80
-                    ? "bg-green-500"
-                    : confidencePct >= 60
-                      ? "bg-yellow-400"
-                      : "bg-red-400"
-                    }`}
-                />
-              </div>
+                return (
+                  <div
+                    key={idx}
+                    className={`rounded-xl p-4 transition-all border ${isTop
+                      ? 'border-green-100 bg-green-50/50 shadow-sm'
+                      : 'border-gray-100 bg-gray-50'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between gap-4 mb-3">
+                      <span className={`text-sm sm:text-base font-medium leading-tight ${isTop ? 'text-gray-900' : 'text-gray-600'}`}>
+                        {formatLabel(pred.label)}
+                      </span>
+                      <span
+                        className={`text-sm sm:text-base font-bold tabular-nums shrink-0 ${isTop
+                          ? predPct >= 80 ? 'text-green-600' : predPct >= 60 ? 'text-yellow-600' : 'text-red-500'
+                          : 'text-gray-500'
+                          }`}
+                      >
+                        {predPct}%
+                      </span>
+                    </div>
+
+                    <div className={`w-full overflow-hidden rounded-full ${isTop ? 'h-2 bg-gray-200/60' : 'h-1.5 bg-gray-200'}`}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${predPct}%` }}
+                        transition={{ duration: 0.9, ease: "easeOut", delay: 0.2 + idx * 0.15 }}
+                        className={`h-full rounded-full ${isTop
+                          ? predPct >= 80 ? 'bg-green-500' : predPct >= 60 ? 'bg-yellow-400' : 'bg-red-400'
+                          : 'bg-gray-300'
+                          }`}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+
+            {/* Treatment & Prevention Card */}
+            {(result.predictions?.[0]?.treatment?.length || result.predictions?.[0]?.prevention?.length) ? (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.0, duration: 0.4 }}
+                className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-5 shadow-sm"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xl">🩺</span>
+                  <h3 className="font-bold text-blue-900">Treatment & Prevention</h3>
+                </div>
+                <div className="space-y-4">
+                  {result.predictions[0].treatment && result.predictions[0].treatment.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-blue-800 mb-2">How to Treat:</h4>
+                      <ul className="list-disc pl-5 space-y-1 text-sm text-blue-800/80">
+                        {result.predictions[0].treatment.map((it, i) => <li key={i}>{it}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {result.predictions[0].prevention && result.predictions[0].prevention.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-blue-800 mb-2">How to Prevent:</h4>
+                      <ul className="list-disc pl-5 space-y-1 text-sm text-blue-800/80">
+                        {result.predictions[0].prevention.map((it, i) => <li key={i}>{it}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ) : null}
 
             {/* Nudge to use Assistant */}
             {!isHealthy && (

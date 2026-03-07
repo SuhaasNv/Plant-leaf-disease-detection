@@ -45,6 +45,8 @@ body {
 
 /* ===== Plant Assistant ===================================================== */
 
+@layer components {
+
 /* Root: stacks panel above FAB, anchored bottom-right */
 .pa-root {
   position: fixed;
@@ -438,4 +440,5 @@ body {
 .pa-chip:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
 }

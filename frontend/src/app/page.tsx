@@ -4,21 +4,31 @@ import { HeroSection } from "@/components/HeroSection";
 const steps = [
   {
     number: "01",
-    title: "Upload a Leaf Image",
+    icon: "📸",
+    title: "Upload a plant leaf image",
     description:
       "Take a photo of any plant leaf and upload it directly from your device. Supports PNG, JPG, and JPEG.",
   },
   {
     number: "02",
-    title: "AI Analysis",
+    icon: "🧠",
+    title: "AI model analyzes disease patterns",
     description:
-      "Our CNN model processes the image in milliseconds, scanning for visual patterns associated with 38 disease classes.",
+      "Our CNN architecture processes the image in milliseconds, scanning for visual markers across 38 disease classes.",
   },
   {
     number: "03",
-    title: "Instant Results",
+    icon: "✨",
+    title: "Prediction results appear",
     description:
-      "Receive a clear diagnosis with the disease name and confidence score — ready to act on immediately.",
+      "Receive a clear diagnosis with the respective disease name and confidence score — ready to act on immediately.",
+  },
+  {
+    number: "04",
+    icon: "🤖",
+    title: "AI assistant provides treatment advice",
+    description:
+      "Open the built-in AI chat to receive personalized, actionable treatment and prevention tips powered by Gemini.",
   },
 ];
 
@@ -33,8 +43,8 @@ const features = [
 
 const stats = [
   { value: "95%", label: "Accuracy" },
-  { value: "38",  label: "Disease Classes" },
-  { value: "14",  label: "Crop Types" },
+  { value: "38", label: "Disease Classes" },
+  { value: "14", label: "Crop Types" },
   { value: "<1s", label: "Inference Time" },
 ];
 
@@ -67,23 +77,28 @@ export default function Home() {
               How it works
             </h2>
             <p className="mt-2 text-gray-600 sm:mt-3">
-              Three steps from upload to diagnosis.
+              Four simple steps from scan to treatment plan.
             </p>
           </div>
 
-          <div className="mt-8 grid gap-4 sm:mt-12 sm:grid-cols-3 sm:gap-6">
+          <div className="mt-8 grid gap-4 sm:mt-12 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
             {steps.map((step) => (
               <div
                 key={step.number}
-                className="rounded-2xl bg-white p-6 shadow-xl transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-2xl sm:p-8"
+                className="flex flex-col rounded-2xl bg-white p-6 shadow-xl transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-2xl sm:p-8"
               >
-                <span className="text-4xl font-bold text-gray-100 sm:text-5xl">
-                  {step.number}
-                </span>
-                <h3 className="mt-3 font-semibold text-gray-900 sm:mt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-4xl font-bold text-gray-100 sm:text-5xl">
+                    {step.number}
+                  </span>
+                  <span className="text-2xl sm:text-3xl" aria-hidden="true">
+                    {step.icon}
+                  </span>
+                </div>
+                <h3 className="mt-4 font-semibold text-gray-900 text-base sm:text-lg leading-tight">
                   {step.title}
                 </h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600">
+                <p className="mt-2 text-sm leading-relaxed text-gray-600 flex-1">
                   {step.description}
                 </p>
               </div>

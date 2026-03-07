@@ -1,0 +1,407 @@
+{
+    "Apple___Apple_scab": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Apple___Black_rot": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Apple___Cedar_apple_rust": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Apple___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    },
+    "Blueberry___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    },
+    "Cherry_(including_sour)___Powdery_mildew": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Cherry_(including_sour)___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    },
+    "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Corn_(maize)___Common_rust_": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Corn_(maize)___Northern_Leaf_Blight": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Corn_(maize)___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    },
+    "Grape___Black_rot": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Grape___Esca_(Black_Measles)": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Grape___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    },
+    "Orange___Haunglongbing_(Citrus_greening)": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Peach___Bacterial_spot": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Peach___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    },
+    "Pepper,_bell___Bacterial_spot": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Pepper,_bell___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    },
+    "Potato___Early_blight": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Potato___Late_blight": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Potato___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    },
+    "Raspberry___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    },
+    "Soybean___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    },
+    "Squash___Powdery_mildew": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Strawberry___Leaf_scorch": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Strawberry___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    },
+    "Tomato___Bacterial_spot": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Tomato___Early_blight": {
+        "treatment": [
+            "Remove infected leaves",
+            "Use copper fungicide"
+        ],
+        "prevention": [
+            "Avoid overhead watering",
+            "Improve airflow"
+        ]
+    },
+    "Tomato___Late_blight": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Tomato___Leaf_Mold": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Tomato___Septoria_leaf_spot": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Tomato___Spider_mites Two-spotted_spider_mite": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Tomato___Target_Spot": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Tomato___Tomato_Yellow_Leaf_Curl_Virus": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Tomato___Tomato_mosaic_virus": {
+        "treatment": [
+            "Remove and destroy infected plant parts.",
+            "Apply appropriate fungicide/pesticide if severe."
+        ],
+        "prevention": [
+            "Ensure adequate spacing for good airflow.",
+            "Avoid overhead watering to keep leaves dry.",
+            "Rotate crops annually."
+        ]
+    },
+    "Tomato___healthy": {
+        "treatment": [
+            "No treatment needed.",
+            "Continue regular maintenance."
+        ],
+        "prevention": [
+            "Ensure proper watering and fertilization.",
+            "Monitor regularly for pests and diseases."
+        ]
+    }
+}

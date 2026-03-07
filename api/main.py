@@ -1,6 +1,7 @@
 import io
 import os
 import sys
+import json
 import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -22,6 +23,7 @@ except ImportError:
 from fastapi import Depends, FastAPI, File, HTTPException, Request, Security, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
+from fastapi.responses import JSONResponse
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -47,8 +49,8 @@ MODEL_PATH = next((p for p in _candidates if p.exists()), _base / "trained_plant
 # Min size for a valid HDF5 model (~193MB). Git LFS pointer is ~200 bytes.
 MIN_MODEL_BYTES = 50_000_000
 
-model: tf.keras.Model
-
+model: tf.keras.Model | None = None
+tflite_model: tf.lite.Interpreter | None = None
 
 class _DTypePolicyShim:
     """
@@ -185,17 +187,29 @@ def _get_model_path() -> Path:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global model
-    path = _get_model_path()
-    model = _load_legacy_model(path)
-    # Log the first layer so the normalization contract is visible at every startup.
-    first_layer = model.layers[0]
-    scale = getattr(first_layer, "scale", "N/A")
-    print(
-        f"[startup] model loaded from {path.name!r} | "
-        f"first_layer={type(first_layer).__name__} scale={scale} | "
-        f"expected_input_range=[0, 255]"
-    )
+    global model, tflite_model
+    try:
+        path = _get_model_path()
+        model = _load_legacy_model(path)
+        # Log the first layer so the normalization contract is visible at every startup.
+        first_layer = model.layers[0]
+        scale = getattr(first_layer, "scale", "N/A")
+        print(
+            f"[startup] model loaded from {path.name!r} | "
+            f"first_layer={type(first_layer).__name__} scale={scale} | "
+            f"expected_input_range=[0, 255]"
+        )
+    except Exception as e:
+        print(f"[startup] Failed to load main model: {e}. Falling back to offline TFLite model...")
+        tflite_path = _base.parent / "plant_disease_model.tflite"
+        if not tflite_path.exists():
+            tflite_path = _base / "plant_disease_model.tflite"
+        if tflite_path.exists():
+            tflite_model = tf.lite.Interpreter(model_path=str(tflite_path))
+            tflite_model.allocate_tensors()
+            print(f"[startup] Loaded offline TFLite model from {tflite_path.name!r}.")
+        else:
+            print("[startup] Warning: No models available.")
     yield
 
 
@@ -243,25 +257,28 @@ _MAGIC: dict[bytes, str] = {
     b"GIF8": "image/gif",
 }
 
-def _validate_image_bytes(raw: bytes) -> None:
-    """Raise 400 if bytes don't look like a supported image."""
+def _validate_image_bytes(raw: bytes) -> str | None:
+    """Return error message if bytes don't look like a supported image, else None."""
     if len(raw) > _MAX_FILE_BYTES:
-        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {_MAX_FILE_BYTES // 1_048_576} MB.")
+        return f"File too large. Maximum size is {_MAX_FILE_BYTES // 1_048_576} MB."
     for magic, _ in _MAGIC.items():
         if raw[:len(magic)] == magic:
-            return
-    raise HTTPException(status_code=400, detail="Unsupported file type. Only JPEG, PNG, WebP, and GIF are accepted.")
+            return None
+    return "Invalid file format. Please upload a PNG or JPG image."
 
+
+class PredictionItem(BaseModel):
+    label: str
+    confidence: float
+    treatment: list[str] = Field(default_factory=list)
+    prevention: list[str] = Field(default_factory=list)
 
 class PredictResponse(BaseModel):
-    cls: str = Field(serialization_alias="class")
-    confidence: float
-
-    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+    predictions: list[PredictionItem]
 
 
 class ChatRequest(BaseModel):
-    disease: str
+    predictions: list[PredictionItem]
     message: str
 
 
@@ -273,6 +290,21 @@ class ChatResponse(BaseModel):
 _MIN_LEAF_PIXEL_RATIO = 0.08
 # Model confidence below this is treated as "not a recognisable leaf".
 _MIN_CONFIDENCE = 0.20
+
+_treatments_file = Path(__file__).resolve().parent / "treatments.json"
+_treatments_db = {}
+if _treatments_file.exists():
+    with open(_treatments_file, "r") as f:
+        _treatments_db = json.load(f)
+
+_analytics_file = Path(__file__).resolve().parent / "analytics.json"
+_analytics_db = {}
+if _analytics_file.exists():
+    try:
+        with open(_analytics_file, "r") as f:
+            _analytics_db = json.load(f)
+    except Exception:
+        _analytics_db = {}
 
 
 def _is_likely_leaf(img: Image.Image) -> bool:
@@ -302,7 +334,9 @@ def health():
 
 _SYSTEM_PROMPT = (
     "You are a practical farming assistant. "
-    "The farmer's plant has been diagnosed with: {disease}.\n\n"
+    "The plant disease model evaluated the farmer's leaf and gave these predictions:\n"
+    "{predictions_context}\n\n"
+    "Explain the most likely disease (the main one). If other predictions are close in confidence, briefly mention them as other possibilities. "
     "Answer in plain, simple language — no scientific jargon unless truly needed. "
     "Do NOT use markdown bold formatting (like **). "
     "Keep every reply under 120 words. "
@@ -323,12 +357,16 @@ async def chat(body: ChatRequest):
 
     client = genai.Client(api_key=api_key)
 
+    predictions_context = "\n".join(
+        f"- {p.label} ({p.confidence * 100:.1f}%)" for p in body.predictions
+    ) or "No predictions available."
+
     try:
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=body.message,
             config=genai_types.GenerateContentConfig(
-                system_instruction=_SYSTEM_PROMPT.format(disease=body.disease),
+                system_instruction=_SYSTEM_PROMPT.format(predictions_context=predictions_context),
             ),
         )
         return ChatResponse(reply=response.text)
@@ -348,26 +386,39 @@ async def predict(request: Request, file: UploadFile = File(...)):  # noqa: ARG0
     allowed_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
     if not any(filename.endswith(ext) for ext in allowed_exts):
         if not (file.content_type or "").startswith("image/"):
-            raise HTTPException(status_code=400, detail="File must be an image (JPEG, PNG, WebP).")
+            return JSONResponse(status_code=400, content={"error": "Invalid file format. Please upload a PNG or JPG image."})
 
     # ── Read and hard-limit file size ─────────────────────────────────────────
     raw = await file.read()
     print(f"[predict] received: filename={file.filename!r} content_type={file.content_type!r} bytes={len(raw)}")
-    _validate_image_bytes(raw)
+    
+    val_err = _validate_image_bytes(raw)
+    if val_err:
+        return JSONResponse(status_code=400, content={"error": val_err})
 
     # ── Decode image ──────────────────────────────────────────────────────────
     try:
         img = Image.open(io.BytesIO(raw)).convert("RGB")
     except Exception:
-        raise HTTPException(status_code=400, detail="Could not decode image. Please upload a valid image file.")
+        return JSONResponse(status_code=400, content={"error": "Corrupted or invalid image file. Please upload a valid PNG or JPG photo."})
 
     # ── Dimension guard ───────────────────────────────────────────────────────
     w, h = img.size
     if w > _MAX_IMAGE_DIM or h > _MAX_IMAGE_DIM:
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail=f"Image dimensions too large ({w}×{h}). Maximum is {_MAX_IMAGE_DIM}×{_MAX_IMAGE_DIM} pixels.",
+            content={"error": f"Image dimensions too large ({w}×{h}). Maximum is {_MAX_IMAGE_DIM}×{_MAX_IMAGE_DIM} pixels."},
         )
+
+    # ── Image Quality Validation ──────────────────────────────────────────────
+    if w < 128 or h < 128:
+        return JSONResponse(status_code=400, content={"error": "Image quality too low. Please upload a clear close-up leaf photo."})
+    
+    img_gray = np.array(img.convert("L"))
+    if np.mean(img_gray) < 20: 
+        return JSONResponse(status_code=400, content={"error": "Image quality too low. Please upload a clear close-up leaf photo."})
+    if np.var(img_gray) < 10: 
+        return JSONResponse(status_code=400, content={"error": "Image quality too low. Please upload a clear close-up leaf photo."})
 
     # ── Leaf colour heuristic ─────────────────────────────────────────────────
     if not _is_likely_leaf(img):
@@ -392,13 +443,24 @@ async def predict(request: Request, file: UploadFile = File(...)):  # noqa: ARG0
         f"arr_shape={arr.shape} arr_min={arr.min():.1f} arr_max={arr.max():.1f}"
     )
 
-    scores = model.predict(arr[np.newaxis], verbose=0)[0]
-    idx = int(np.argmax(scores))
-    confidence = round(float(scores[idx]), 4)
+    if model is not None:
+        scores = model.predict(arr[np.newaxis], verbose=0)[0]
+    elif tflite_model is not None:
+        input_details = tflite_model.get_input_details()
+        output_details = tflite_model.get_output_details()
+        tflite_model.set_tensor(input_details[0]['index'], arr[np.newaxis])
+        tflite_model.invoke()
+        scores = tflite_model.get_tensor(output_details[0]['index'])[0]
+    else:
+        raise HTTPException(status_code=503, detail="Prediction models are currently unavailable.")
 
-    # Log top-3 for debugging
+    # Get top-3 predictions
     top3_idx = np.argsort(scores)[::-1][:3]
     top3 = [(config.CLASS_NAMES[i], round(float(scores[i]), 4)) for i in top3_idx]
+    
+    idx = top3_idx[0]
+    confidence = top3[0][1]
+    
     print(f"[predict] chosen_idx={idx} class={config.CLASS_NAMES[idx]!r} confidence={confidence} top3={top3}")
 
     if confidence < _MIN_CONFIDENCE:
@@ -407,4 +469,24 @@ async def predict(request: Request, file: UploadFile = File(...)):  # noqa: ARG0
             detail="Image not recognised as a plant leaf. Please upload a clear, well-lit leaf photo.",
         )
 
-    return PredictResponse(cls=config.CLASS_NAMES[idx], confidence=confidence)
+    predictions = []
+    for label, conf in top3:
+        info = _treatments_db.get(label, {})
+        predictions.append(
+            PredictionItem(
+                label=label, 
+                confidence=conf,
+                treatment=info.get("treatment", []),
+                prevention=info.get("prevention", [])
+            )
+        )
+        
+    _analytics_db[config.CLASS_NAMES[idx]] = _analytics_db.get(config.CLASS_NAMES[idx], 0) + 1
+    with open(_analytics_file, "w") as f:
+        json.dump(_analytics_db, f)
+
+    return PredictResponse(predictions=predictions)
+
+@app.get("/analytics")
+def get_analytics():
+    return {"disease_counts": _analytics_db}

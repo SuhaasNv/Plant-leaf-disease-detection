@@ -2,6 +2,7 @@
 
 import { useState, useRef, useLayoutEffect, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import type { PredictionItem } from "./DiseaseUpload";
 
 type Message = {
     role: "user" | "assistant";
@@ -9,16 +10,9 @@ type Message = {
 };
 
 interface PlantAssistantProps {
-    detectedDisease: string | null;
+    detectedPredictions: PredictionItem[] | null;
 }
 
-// Practical pre-prompts that make sense for any plant disease
-const SUGGESTIONS = [
-    "How serious is this disease?",
-    "What should I treat it with?",
-    "How do I stop it spreading?",
-    "Will it affect my harvest?",
-];
 
 const panelVariants = {
     hidden: { opacity: 0, scale: 0.88, y: 12 },
@@ -46,7 +40,25 @@ const chipVariants = {
     exit: { opacity: 0, y: -4, transition: { duration: 0.15 } },
 };
 
-export function PlantAssistant({ detectedDisease }: PlantAssistantProps) {
+export function PlantAssistant({ detectedPredictions }: PlantAssistantProps) {
+    const topDisease = detectedPredictions?.[0]?.label;
+
+    const friendlyName = topDisease && !topDisease.toLowerCase().includes("healthy")
+        ? formatLabel(topDisease)
+        : null;
+
+    const SUGGESTIONS = friendlyName
+        ? [
+            `How do I treat ${friendlyName}?`,
+            `Can ${friendlyName} spread to other plants?`,
+            `How can I prevent ${friendlyName} next season?`
+        ]
+        : [
+            "How serious is this disease?",
+            "What should I treat it with?",
+            "How do I stop it spreading?"
+        ];
+
     const [open, setOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
@@ -66,7 +78,6 @@ export function PlantAssistant({ detectedDisease }: PlantAssistantProps) {
     const sendText = async (text: string) => {
         if (!text.trim() || loading) return;
 
-        const disease = detectedDisease ?? "Unknown disease";
         setMessages((prev) => [...prev, { role: "user", text }]);
         setInput("");
         setLoading(true);
@@ -75,7 +86,7 @@ export function PlantAssistant({ detectedDisease }: PlantAssistantProps) {
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ disease, message: text }),
+                body: JSON.stringify({ predictions: detectedPredictions ?? [], message: text }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail ?? "Something went wrong.");
@@ -105,7 +116,7 @@ export function PlantAssistant({ detectedDisease }: PlantAssistantProps) {
     };
 
     // Show chips when disease is detected and there are no messages yet
-    const showChips = !!detectedDisease && messages.length === 0 && !loading;
+    const showChips = !!topDisease && messages.length === 0 && !loading;
     const hasUnread = !open && messages.length > 0;
 
     return (
@@ -127,10 +138,10 @@ export function PlantAssistant({ detectedDisease }: PlantAssistantProps) {
                             <span className="pa-header-icon">🌿</span>
                             <div className="pa-header-text">
                                 <p className="pa-title">Plant Assistant</p>
-                                {detectedDisease ? (
+                                {topDisease ? (
                                     <p className="pa-subtitle">
                                         Advising on{" "}
-                                        <span className="pa-disease-tag">{formatLabel(detectedDisease)}</span>
+                                        <span className="pa-disease-tag">{formatLabel(topDisease)}</span>
                                     </p>
                                 ) : (
                                     <p className="pa-subtitle">Analyze a leaf first for context</p>
@@ -161,7 +172,7 @@ export function PlantAssistant({ detectedDisease }: PlantAssistantProps) {
                         {/* Messages */}
                         <div id="plant-assistant-messages" className="pa-messages">
                             {/* Empty state — only when no disease detected */}
-                            {messages.length === 0 && !detectedDisease && (
+                            {messages.length === 0 && !topDisease && (
                                 <div className="pa-empty">
                                     <span className="pa-empty-icon">🍃</span>
                                     <p>Analyze a leaf first, then I&apos;ll help you understand the disease.</p>
