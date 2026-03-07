@@ -13,13 +13,6 @@ interface PlantAssistantProps {
     detectedPredictions: PredictionItem[] | null;
 }
 
-// Practical pre-prompts that make sense for any plant disease
-const SUGGESTIONS = [
-    "How serious is this disease?",
-    "What should I treat it with?",
-    "How do I stop it spreading?",
-    "Will it affect my harvest?",
-];
 
 const panelVariants = {
     hidden: { opacity: 0, scale: 0.88, y: 12 },
@@ -49,6 +42,23 @@ const chipVariants = {
 
 export function PlantAssistant({ detectedPredictions }: PlantAssistantProps) {
     const topDisease = detectedPredictions?.[0]?.label;
+
+    const friendlyName = topDisease && !topDisease.toLowerCase().includes("healthy")
+        ? formatLabel(topDisease)
+        : null;
+
+    const SUGGESTIONS = friendlyName
+        ? [
+            `How do I treat ${friendlyName}?`,
+            `Can ${friendlyName} spread to other plants?`,
+            `How can I prevent ${friendlyName} next season?`
+        ]
+        : [
+            "How serious is this disease?",
+            "What should I treat it with?",
+            "How do I stop it spreading?"
+        ];
+
     const [open, setOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");

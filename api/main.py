@@ -49,8 +49,8 @@ MODEL_PATH = next((p for p in _candidates if p.exists()), _base / "trained_plant
 # Min size for a valid HDF5 model (~193MB). Git LFS pointer is ~200 bytes.
 MIN_MODEL_BYTES = 50_000_000
 
-model: tf.keras.Model
-
+model: tf.keras.Model | None = None
+tflite_model: tf.lite.Interpreter | None = None
 
 class _DTypePolicyShim:
     """
@@ -187,17 +187,29 @@ def _get_model_path() -> Path:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global model
-    path = _get_model_path()
-    model = _load_legacy_model(path)
-    # Log the first layer so the normalization contract is visible at every startup.
-    first_layer = model.layers[0]
-    scale = getattr(first_layer, "scale", "N/A")
-    print(
-        f"[startup] model loaded from {path.name!r} | "
-        f"first_layer={type(first_layer).__name__} scale={scale} | "
-        f"expected_input_range=[0, 255]"
-    )
+    global model, tflite_model
+    try:
+        path = _get_model_path()
+        model = _load_legacy_model(path)
+        # Log the first layer so the normalization contract is visible at every startup.
+        first_layer = model.layers[0]
+        scale = getattr(first_layer, "scale", "N/A")
+        print(
+            f"[startup] model loaded from {path.name!r} | "
+            f"first_layer={type(first_layer).__name__} scale={scale} | "
+            f"expected_input_range=[0, 255]"
+        )
+    except Exception as e:
+        print(f"[startup] Failed to load main model: {e}. Falling back to offline TFLite model...")
+        tflite_path = _base.parent / "plant_disease_model.tflite"
+        if not tflite_path.exists():
+            tflite_path = _base / "plant_disease_model.tflite"
+        if tflite_path.exists():
+            tflite_model = tf.lite.Interpreter(model_path=str(tflite_path))
+            tflite_model.allocate_tensors()
+            print(f"[startup] Loaded offline TFLite model from {tflite_path.name!r}.")
+        else:
+            print("[startup] Warning: No models available.")
     yield
 
 
@@ -431,7 +443,16 @@ async def predict(request: Request, file: UploadFile = File(...)):  # noqa: ARG0
         f"arr_shape={arr.shape} arr_min={arr.min():.1f} arr_max={arr.max():.1f}"
     )
 
-    scores = model.predict(arr[np.newaxis], verbose=0)[0]
+    if model is not None:
+        scores = model.predict(arr[np.newaxis], verbose=0)[0]
+    elif tflite_model is not None:
+        input_details = tflite_model.get_input_details()
+        output_details = tflite_model.get_output_details()
+        tflite_model.set_tensor(input_details[0]['index'], arr[np.newaxis])
+        tflite_model.invoke()
+        scores = tflite_model.get_tensor(output_details[0]['index'])[0]
+    else:
+        raise HTTPException(status_code=503, detail="Prediction models are currently unavailable.")
 
     # Get top-3 predictions
     top3_idx = np.argsort(scores)[::-1][:3]
