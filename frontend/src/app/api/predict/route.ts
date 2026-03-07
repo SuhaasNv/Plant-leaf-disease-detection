@@ -16,7 +16,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-const API_URL = process.env.API_URL ?? "";
+const API_URL = (process.env.API_URL ?? "").replace(/\/+$/, "");
 const API_KEY = process.env.API_KEY ?? "";
 
 // ── Simple in-memory rate limiter ─────────────────────────────────────────────

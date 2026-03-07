@@ -349,9 +349,10 @@ _SYSTEM_PROMPT = (
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(body: ChatRequest):
+async def chat(request: Request, body: ChatRequest):
     """Ask Gemini 2.5 Flash about the detected plant disease."""
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    api_key_header = request.headers.get("x-gemini-key", "").strip()
+    api_key = os.getenv("GEMINI_API_KEY", "").strip() or api_key_header
     if not api_key:
         raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured on the server.")
 

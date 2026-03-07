@@ -4,7 +4,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-const API_URL = process.env.API_URL ?? "";
+const API_URL = (process.env.API_URL ?? "").replace(/\/+$/, "");
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? "";
 
 export async function POST(req: NextRequest) {
   if (!API_URL) {
@@ -26,9 +27,14 @@ export async function POST(req: NextRequest) {
 
   let res: Response;
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (GEMINI_API_KEY) {
+      headers["X-Gemini-Key"] = GEMINI_API_KEY;
+    }
+
     res = await fetch(`${API_URL}/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
     });
   } catch (err) {
