@@ -253,15 +253,16 @@ def _validate_image_bytes(raw: bytes) -> None:
     raise HTTPException(status_code=400, detail="Unsupported file type. Only JPEG, PNG, WebP, and GIF are accepted.")
 
 
-class PredictResponse(BaseModel):
-    cls: str = Field(serialization_alias="class")
+class PredictionItem(BaseModel):
+    label: str
     confidence: float
 
-    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+class PredictResponse(BaseModel):
+    predictions: list[PredictionItem]
 
 
 class ChatRequest(BaseModel):
-    disease: str
+    predictions: list[PredictionItem]
     message: str
 
 
@@ -302,7 +303,9 @@ def health():
 
 _SYSTEM_PROMPT = (
     "You are a practical farming assistant. "
-    "The farmer's plant has been diagnosed with: {disease}.\n\n"
+    "The plant disease model evaluated the farmer's leaf and gave these predictions:\n"
+    "{predictions_context}\n\n"
+    "Explain the most likely disease (the main one). If other predictions are close in confidence, briefly mention them as other possibilities. "
     "Answer in plain, simple language — no scientific jargon unless truly needed. "
     "Do NOT use markdown bold formatting (like **). "
     "Keep every reply under 120 words. "
@@ -323,12 +326,16 @@ async def chat(body: ChatRequest):
 
     client = genai.Client(api_key=api_key)
 
+    predictions_context = "\n".join(
+        f"- {p.label} ({p.confidence * 100:.1f}%)" for p in body.predictions
+    ) or "No predictions available."
+
     try:
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=body.message,
             config=genai_types.GenerateContentConfig(
-                system_instruction=_SYSTEM_PROMPT.format(disease=body.disease),
+                system_instruction=_SYSTEM_PROMPT.format(predictions_context=predictions_context),
             ),
         )
         return ChatResponse(reply=response.text)
@@ -393,12 +400,14 @@ async def predict(request: Request, file: UploadFile = File(...)):  # noqa: ARG0
     )
 
     scores = model.predict(arr[np.newaxis], verbose=0)[0]
-    idx = int(np.argmax(scores))
-    confidence = round(float(scores[idx]), 4)
 
-    # Log top-3 for debugging
+    # Get top-3 predictions
     top3_idx = np.argsort(scores)[::-1][:3]
     top3 = [(config.CLASS_NAMES[i], round(float(scores[i]), 4)) for i in top3_idx]
+    
+    idx = top3_idx[0]
+    confidence = top3[0][1]
+    
     print(f"[predict] chosen_idx={idx} class={config.CLASS_NAMES[idx]!r} confidence={confidence} top3={top3}")
 
     if confidence < _MIN_CONFIDENCE:
@@ -407,4 +416,5 @@ async def predict(request: Request, file: UploadFile = File(...)):  # noqa: ARG0
             detail="Image not recognised as a plant leaf. Please upload a clear, well-lit leaf photo.",
         )
 
-    return PredictResponse(cls=config.CLASS_NAMES[idx], confidence=confidence)
+    predictions = [PredictionItem(label=label, confidence=conf) for label, conf in top3]
+    return PredictResponse(predictions=predictions)

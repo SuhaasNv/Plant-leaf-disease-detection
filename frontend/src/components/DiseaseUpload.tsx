@@ -3,10 +3,13 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-type PredictionResult = {
-  class?: string;
-  cls?: string;
+export type PredictionItem = {
+  label: string;
   confidence: number;
+};
+
+export type PredictionResult = {
+  predictions: PredictionItem[];
 };
 
 function formatLabel(raw: string | undefined | null): string {
@@ -43,7 +46,7 @@ function easeProgress(t: number) {
   return 1 - Math.pow(1 - t, 2.4);
 }
 
-export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | null) => void }) {
+export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: PredictionItem[] | null) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [result, setResult] = useState<PredictionResult | null>(null);
@@ -95,7 +98,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
         setError(err);
       } else {
         setResult(res);
-        onDisease?.(res?.["class"] ?? res?.cls ?? null);
+        onDisease?.(res?.predictions ?? null);
       }
     }, 350); // brief pause at 100% before showing result
   };
@@ -168,8 +171,8 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
       }
 
       const data: PredictionResult = await res.json();
-      const label = data["class"] ?? data.cls;
-      console.log(`[upload] prediction received: class=${label} confidence=${data.confidence}`);
+      const label = data.predictions?.[0]?.label ?? "Unknown";
+      console.log(`[upload] prediction received: class=${label} confidence=${data.predictions?.[0]?.confidence}`);
 
       if (animDoneRef.current) {
         revealResult(data, null);
@@ -211,8 +214,9 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const confidencePct = result ? Math.round(result.confidence * 100) : 0;
-  const isHealthy = (result?.["class"] ?? result?.cls)?.toLowerCase().includes("healthy");
+  const topPrediction = result?.predictions?.[0];
+  const confidencePct = topPrediction ? Math.round(topPrediction.confidence * 100) : 0;
+  const isHealthy = topPrediction?.label?.toLowerCase().includes("healthy");
 
   return (
     <div className="space-y-4">
@@ -363,7 +367,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
 
             <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
               <h3 className="text-xl font-bold leading-tight text-gray-900 sm:text-3xl">
-                {formatLabel(result["class"] ?? result.cls)}
+                {formatLabel(topPrediction?.label)}
               </h3>
               <span
                 className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${isHealthy ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
@@ -373,35 +377,48 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (disease: string | nu
               </span>
             </div>
 
-            {/* Confidence bar */}
-            <div className="mt-5">
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm text-gray-400">Confidence</span>
-                <span
-                  className={`text-2xl font-bold tabular-nums ${confidencePct >= 80
-                    ? "text-green-600"
-                    : confidencePct >= 60
-                      ? "text-yellow-500"
-                      : "text-red-500"
-                    }`}
-                >
-                  {confidencePct}%
-                </span>
-              </div>
+            {/* Predictions List */}
+            <div className="mt-6 lg:mt-8 space-y-3">
+              {result.predictions?.slice().sort((a, b) => b.confidence - a.confidence).map((pred, idx) => {
+                const predPct = Math.round(pred.confidence * 100);
+                const isTop = idx === 0;
 
-              <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-gray-100">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${confidencePct}%` }}
-                  transition={{ duration: 0.9, ease: "easeOut", delay: 0.2 }}
-                  className={`h-full rounded-full ${confidencePct >= 80
-                    ? "bg-green-500"
-                    : confidencePct >= 60
-                      ? "bg-yellow-400"
-                      : "bg-red-400"
-                    }`}
-                />
-              </div>
+                return (
+                  <div
+                    key={idx}
+                    className={`rounded-xl p-4 transition-all border ${isTop
+                      ? 'border-green-100 bg-green-50/50 shadow-sm'
+                      : 'border-gray-100 bg-gray-50'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between gap-4 mb-3">
+                      <span className={`text-sm sm:text-base font-medium leading-tight ${isTop ? 'text-gray-900' : 'text-gray-600'}`}>
+                        {formatLabel(pred.label)}
+                      </span>
+                      <span
+                        className={`text-sm sm:text-base font-bold tabular-nums shrink-0 ${isTop
+                          ? predPct >= 80 ? 'text-green-600' : predPct >= 60 ? 'text-yellow-600' : 'text-red-500'
+                          : 'text-gray-500'
+                          }`}
+                      >
+                        {predPct}%
+                      </span>
+                    </div>
+
+                    <div className={`w-full overflow-hidden rounded-full ${isTop ? 'h-2 bg-gray-200/60' : 'h-1.5 bg-gray-200'}`}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${predPct}%` }}
+                        transition={{ duration: 0.9, ease: "easeOut", delay: 0.2 + idx * 0.15 }}
+                        className={`h-full rounded-full ${isTop
+                          ? predPct >= 80 ? 'bg-green-500' : predPct >= 60 ? 'bg-yellow-400' : 'bg-red-400'
+                          : 'bg-gray-300'
+                          }`}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Nudge to use Assistant */}
