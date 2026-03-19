@@ -73,9 +73,10 @@ After a leaf image is analyzed and a disease is detected, you can open the **Pla
 | **Context-aware** | Uses the detected disease (e.g. Apple — Black Rot) to tailor responses |
 | **Treatment & prevention** | Ask "How do I treat...?", "How can I prevent... next season?" |
 | **Spread info** | Ask "Can this disease spread to other plants?" |
-| **Server-side** | Chat goes through `/api/chat` proxy — Gemini API key stays on the server |
+| **Server-side** | Chat goes through `/api/chat` proxy — API keys stay on the server |
+| **OpenAI fallback** | If Gemini fails or isn't configured, falls back to OpenAI GPT-4o-mini |
 
-**Setup:** Set `GEMINI_API_KEY` in your Vercel and Railway environment variables to enable the assistant.
+**Setup:** Set `GEMINI_API_KEY` (primary) and/or `OPENAI_API_KEY` (fallback) in your Vercel and Railway environment variables to enable the assistant.
 
 ---
 
@@ -235,8 +236,8 @@ Training uses the canonical pipeline (`config.py` + `data_pipeline.py`) as the s
 
 **Env vars (production):**
 
-- **Railway:** `API_KEY`, `MODEL_URL`, `CORS_ORIGINS`, `GEMINI_API_KEY` (optional, for Plant Assistant chat)
-- **Vercel:** `API_URL` (Railway URL), `API_KEY` (same as Railway), `GEMINI_API_KEY` (optional, for Plant Assistant) — no `NEXT_PUBLIC_` prefix
+- **Railway:** `API_KEY`, `MODEL_URL`, `CORS_ORIGINS`, `GEMINI_API_KEY` (optional, primary chat), `OPENAI_API_KEY` (optional, fallback chat)
+- **Vercel:** `API_URL` (Railway URL), `API_KEY` (same as Railway), `GEMINI_API_KEY` (optional), `OPENAI_API_KEY` (optional, fallback) — no `NEXT_PUBLIC_` prefix
 
 ---
 

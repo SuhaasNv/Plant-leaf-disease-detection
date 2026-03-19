@@ -348,31 +348,86 @@ _SYSTEM_PROMPT = (
 )
 
 
+def _call_gemini(api_key: str, message: str, predictions_context: str) -> tuple[str | None, str | None]:
+    """Try Gemini 2.5 Flash, fallback to 2.0. Returns (reply, error_msg)."""
+    client = genai.Client(api_key=api_key)
+    config = genai_types.GenerateContentConfig(
+        system_instruction=_SYSTEM_PROMPT.format(predictions_context=predictions_context),
+    )
+    for model_id in ("gemini-2.5-flash", "gemini-2.0-flash"):
+        try:
+            response = client.models.generate_content(
+                model=model_id,
+                contents=message,
+                config=config,
+            )
+            return (response.text, None)
+        except Exception as exc:
+            err = str(exc)
+            print(f"[chat] Gemini ({model_id}) error: {err}")
+    return (None, err)
+
+
+def _call_openai(api_key: str, message: str, predictions_context: str) -> tuple[str | None, str | None]:
+    """Try OpenAI (gpt-4.1-nano cheapest, fallback gpt-4o-mini). Returns (reply, error_msg)."""
+    from openai import OpenAI
+
+    client = OpenAI(api_key=api_key)
+    messages = [
+        {"role": "system", "content": _SYSTEM_PROMPT.format(predictions_context=predictions_context)},
+        {"role": "user", "content": message},
+    ]
+    for model_id in ("gpt-4.1-nano", "gpt-4o-mini"):
+        try:
+            response = client.chat.completions.create(model=model_id, messages=messages)
+            return (response.choices[0].message.content, None)
+        except Exception as exc:
+            err = str(exc)
+            print(f"[chat] OpenAI ({model_id}) error: {err}")
+    return (None, err)
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: Request, body: ChatRequest):
-    """Ask Gemini 2.5 Flash about the detected plant disease."""
-    api_key_header = request.headers.get("x-gemini-key", "").strip()
-    api_key = os.getenv("GEMINI_API_KEY", "").strip() or api_key_header
-    if not api_key:
-        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured on the server.")
+    """Ask Gemini 2.5 Flash about the detected plant disease. Falls back to OpenAI if Gemini fails."""
+    gemini_key_header = request.headers.get("x-gemini-key", "").strip()
+    openai_key_header = request.headers.get("x-openai-key", "").strip()
+    gemini_key = os.getenv("GEMINI_API_KEY", "").strip() or gemini_key_header
+    openai_key = os.getenv("OPENAI_API_KEY", "").strip() or openai_key_header
 
-    client = genai.Client(api_key=api_key)
+    if not gemini_key and not openai_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Neither GEMINI_API_KEY nor OPENAI_API_KEY is configured on the server.",
+        )
 
     predictions_context = "\n".join(
         f"- {p.label} ({p.confidence * 100:.1f}%)" for p in body.predictions
     ) or "No predictions available."
 
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=body.message,
-            config=genai_types.GenerateContentConfig(
-                system_instruction=_SYSTEM_PROMPT.format(predictions_context=predictions_context),
-            ),
+    reply: str | None = None
+    errors: list[str] = []
+
+    if gemini_key:
+        reply, err = _call_gemini(gemini_key, body.message, predictions_context)
+        if err:
+            errors.append(f"Gemini: {err[:100]}")
+
+    if reply is None and openai_key:
+        reply, err = _call_openai(openai_key, body.message, predictions_context)
+        if err:
+            errors.append(f"OpenAI: {err[:100]}")
+
+    if reply is None:
+        hint = " Ensure GEMINI_API_KEY and/or OPENAI_API_KEY are set correctly on the server."
+        if errors:
+            hint = f" {errors[0]}" if len(errors) == 1 else f" Last errors: {'; '.join(errors[-2:])}"
+        raise HTTPException(
+            status_code=502,
+            detail=f"Both Gemini and OpenAI chat services failed.{hint}",
         )
-        return ChatResponse(reply=response.text)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Gemini API error: {exc}") from exc
+
+    return ChatResponse(reply=reply)
 
 
 @app.post(
