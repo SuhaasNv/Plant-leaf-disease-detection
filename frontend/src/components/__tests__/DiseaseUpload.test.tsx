@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DiseaseUpload } from '../DiseaseUpload';
 
@@ -23,7 +23,7 @@ describe('DiseaseUpload Component', () => {
     const originalCreateElement = document.createElement.bind(document);
     vi.spyOn(document, 'createElement').mockImplementation((tagName) => {
       if (tagName === 'canvas') {
-        return mockCanvas as any;
+        return mockCanvas as unknown as HTMLCanvasElement;
       }
       return originalCreateElement(tagName);
     });
@@ -84,7 +84,7 @@ describe('DiseaseUpload Component', () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       json: async () => mockResponse,
-    } as any);
+    } as unknown as Response);
 
     const onDiseaseMock = vi.fn();
     const { container } = render(<DiseaseUpload onDisease={onDiseaseMock} />);
@@ -121,7 +121,7 @@ describe('DiseaseUpload Component', () => {
       ok: false,
       status: 422,
       json: async () => ({ detail: 'No plant leaf detected. Please upload a clear photo of a leaf.' }),
-    } as any);
+    } as unknown as Response);
 
     const { container } = render(<DiseaseUpload />);
     const file = new File(['dummy content'], 'test-leaf.png', { type: 'image/png' });

@@ -4,7 +4,7 @@ import { HeroSection } from '../HeroSection';
 
 // Mock TextScramble component
 vi.mock('@/components/ui/text-scramble', () => ({
-  TextScramble: ({ children, trigger }: any) => (
+  TextScramble: ({ children, trigger }: { children: React.ReactNode; trigger?: boolean }) => (
     <span data-testid="mock-scramble" data-trigger={trigger ? 'true' : 'false'}>
       {children}
     </span>
@@ -13,14 +13,14 @@ vi.mock('@/components/ui/text-scramble', () => ({
 
 // Mock RevealWaveImage component
 vi.mock('@/components/ui/reveal-wave-image', () => ({
-  RevealWaveImage: ({ className }: any) => (
+  RevealWaveImage: ({ className }: { className?: string }) => (
     <div data-testid="mock-reveal-wave-image" className={className} />
   ),
 }));
 
 // Mock next/link
 vi.mock('next/link', () => ({
-  default: ({ children, href, className, onMouseEnter, onMouseLeave }: any) => (
+  default: ({ children, href, className, onMouseEnter, onMouseLeave }: { children: React.ReactNode; href: string; className?: string; onMouseEnter?: () => void; onMouseLeave?: () => void }) => (
     <a
       href={href}
       className={className}

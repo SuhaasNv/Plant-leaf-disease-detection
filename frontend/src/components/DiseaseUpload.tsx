@@ -85,7 +85,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: Predict
           videoRef.current.srcObject = stream;
         }
       }, 50);
-    } catch (e: any) {
+    } catch {
       setError("Unable to access camera. Please allow camera permissions.");
     }
   };
@@ -278,7 +278,6 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: Predict
   };
 
   const topPrediction = result?.predictions?.[0];
-  const confidencePct = topPrediction ? Math.round(topPrediction.confidence * 100) : 0;
   const isHealthy = topPrediction?.label?.toLowerCase().includes("healthy");
 
   return (
@@ -334,6 +333,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: Predict
 
           {preview ? (
             <div className="space-y-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={preview}
                 alt="Leaf preview"

@@ -29,7 +29,10 @@ export function Nav() {
   }, []);
 
   // Close mobile menu on route change
-  useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   return (
     <>

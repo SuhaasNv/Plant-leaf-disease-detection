@@ -6,11 +6,6 @@ import { NavBar } from '../tubelight-navbar';
 import { RevealWaveImage } from '../reveal-wave-image';
 import { Home } from 'lucide-react';
 
-// Simple mock for canvas as it is used by RevealWaveImage
-const mockCanvasContext = {
-  fillRect: vi.fn(),
-  drawImage: vi.fn(),
-};
 
 describe('UI Primitives Components', () => {
   beforeEach(() => {
@@ -79,7 +74,7 @@ describe('UI Primitives Components', () => {
       { speed: 0.5, duration: 0.5 },
     ];
 
-    triggerSpeeds.forEach(({ speed, duration }, index) => {
+    triggerSpeeds.forEach(({ speed, duration }) => {
       it(`handles text scrambling with speed ${speed} and duration ${duration}`, async () => {
         vi.useFakeTimers();
         const completeMock = vi.fn();

@@ -10,7 +10,7 @@ vi.mock('next/navigation', () => ({
 
 // Mock next/link to render standard anchors
 vi.mock('next/link', () => ({
-  default: ({ children, href, className, onClick }: any) => (
+  default: ({ children, href, className, onClick }: { children: React.ReactNode; href: string; className?: string; onClick?: () => void }) => (
     <a href={href} className={className} onClick={onClick}>
       {children}
     </a>

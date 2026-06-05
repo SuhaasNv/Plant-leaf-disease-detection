@@ -52,7 +52,7 @@ describe('PlantAssistant Component', () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       json: async () => ({ reply: 'This is the mock AI response.' }),
-    } as any);
+    } as unknown as Response);
 
     render(<PlantAssistant detectedPredictions={predictions} />);
     fireEvent.click(screen.getByRole('button', { name: 'Open Plant Assistant' }));
@@ -79,7 +79,7 @@ describe('PlantAssistant Component', () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: false,
       json: async () => ({ detail: 'API quota exceeded.' }),
-    } as any);
+    } as unknown as Response);
 
     render(<PlantAssistant detectedPredictions={null} />);
     fireEvent.click(screen.getByRole('button', { name: 'Open Plant Assistant' }));
