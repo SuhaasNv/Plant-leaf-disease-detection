@@ -6,9 +6,18 @@ import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from fastapi import Depends, FastAPI, File, HTTPException, Request, Security, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security.api_key import APIKeyHeader
+from fastapi.responses import JSONResponse
 import google.genai as genai
 from google.genai import types as genai_types
 import numpy as np
+from PIL import Image
+from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 import tensorflow as tf
 from dotenv import load_dotenv
 
@@ -20,18 +29,9 @@ try:
     import gdown
 except ImportError:
     gdown = None
-from fastapi import Depends, FastAPI, File, HTTPException, Request, Security, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security.api_key import APIKeyHeader
-from fastapi.responses import JSONResponse
-from PIL import Image
-from pydantic import BaseModel, ConfigDict, Field
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import config
+import config  # noqa: E402
 
 # Local dev: model at project root, Prev Models/, or api/. Docker: often gets Git LFS pointer (invalid).
 # Set MODEL_URL to download the real model at startup when the bundled file is missing or invalid.
@@ -172,15 +172,21 @@ def _get_model_path() -> Path:
         return MODEL_PATH
     url = os.getenv("MODEL_URL") or _DEFAULT_MODEL_URL
     if url:
+        # Validate URL scheme to prevent file:// or other local file disclosure exploits (SSRF / CWE-22)
+        from urllib.parse import urlparse
+        parsed_url = urlparse(url)
+        if parsed_url.scheme not in ("http", "https"):
+            raise ValueError(f"Forbidden URL scheme: {parsed_url.scheme}. Only HTTP and HTTPS are allowed.")
+
         dest = _base / "trained_plant_disease_model.h5"
         dest.parent.mkdir(parents=True, exist_ok=True)
         if "drive.google.com" in url and gdown:
             gdown.download(url, str(dest), quiet=False, fuzzy=True)
         else:
-            urllib.request.urlretrieve(url, dest)
+            urllib.request.urlretrieve(url, dest)  # nosec B310
         return dest
     raise RuntimeError(
-        f"Model not found or invalid (Git LFS pointer?). "
+        "Model not found or invalid (Git LFS pointer?). "
         "Set MODEL_URL to a direct download URL, or ensure the real .h5 file is in the image."
     )
 
