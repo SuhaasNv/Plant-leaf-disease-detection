@@ -84,9 +84,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Run Gitleaks check
-        run: |
-          echo "Running Gitleaks repository scanner..."
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          source: 'https://github.com/${{ github.repository }}.git'
+          verbose: true
+          redact: true
+          exit-code: 0
+      - name: Upload Gitleaks Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+        if: always()
 
   sca:
     name: SCA
@@ -121,9 +133,21 @@ jobs:
     needs: [production-build, sast]
     runs-on: ubuntu-latest
     steps:
-      - name: Run DAST Scan
-        run: |
-          echo "Running dynamic security testing with OWASP ZAP..."
+      - uses: actions/checkout@v4
+      - name: Run OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.7.0
+        with:
+          target: 'http://localhost:8000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+          allow_issue_writing: false
+        continue-on-error: true
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-report
+          path: '**/*.json'
+        if: always()
 
   sast-semgrep:
     name: SAST - Semgrep
@@ -200,43 +224,4 @@ jobs:
         continue-on-error: true
       - name: Generate Github Step Summary
         run: |
-          echo "## ⚙️ CI Backend - Quality & Security Report" >> $GITHUB_STEP_SUMMARY
-          echo "All checks and tests have completed for the backend API." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> [!IMPORTANT]" >> $GITHUB_STEP_SUMMARY
-          echo "> **Total Combined Project Test Cases**: **529 Automated Tests** (290 Frontend / 239 Backend) with a **100% passing rate** and clean production builds." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Backend Verification Metrics" >> $GITHUB_STEP_SUMMARY
-          echo "| Check Category | Job Status | Total Test Cases | Notes |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :---: | :---: | :--- |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Combined Project Tests** | ✅ Passed | 529 | Total automated tests (239 Backend + 290 Frontend). |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Unit & Integration Tests (Backend)** | ✅ Passed | 239 | Pytest suite covering classification models, confidence boundaries, and error fallbacks. |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Static Analysis (Lint)** | ✅ Passed | - | Ruff check verifies full PEP8 compliance and clean import ordering. |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Security (SAST - Bandit)** | ✅ Passed | - | Audited model URL schemas (CWE-22) to prevent SSRF vulnerabilities. |" >> $GITHUB_STEP_SUMMARY
-          echo "| **SCA (Security Safety Check)** | ✅ Completed | - | Scans third party packages for vulnerabilities. |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Trivy Vulnerability Scan** | ✅ Completed | - | Filesystem and dependency vulnerability scan for API code. |" >> $GITHUB_STEP_SUMMARY
-          echo "| **DAST (OWASP ZAP)** | ✅ Completed | - | Basic automated dynamic vulnerability test pass. |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Secrets & Gitleaks** | ✅ Passed | - | Scanned codebase for hardcoded keys and tokens. |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔍 Trivy Vulnerability Scan (Backend)" >> $GITHUB_STEP_SUMMARY
-          if [ -f trivy-results.json ]; then
-            TOTAL=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | .Severity] | length')
-            CRITICAL=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length')
-            HIGH=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "HIGH")] | length')
-            MEDIUM=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length')
-            LOW=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "LOW")] | length')
-            UNKNOWN=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "UNKNOWN")] | length')
-
-            echo "**Total: $TOTAL (UNKNOWN: $UNKNOWN, LOW: $LOW, MEDIUM: $MEDIUM, HIGH: $HIGH, CRITICAL: $CRITICAL)**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-
-            if [ $TOTAL -gt 0 ]; then
-              echo "| Library | Vulnerability ID | Severity | Installed Version | Fixed Version | Title |" >> $GITHUB_STEP_SUMMARY
-              echo "| :--- | :--- | :--- | :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-              cat trivy-results.json | jq -r '.Results[] | select(.Vulnerabilities) | .Target as $target | .Vulnerabilities[] | "| \($target) | [\(.VulnerabilityID)](https://nvd.nist.gov/vuln/detail/\(.VulnerabilityID)) | \(.Severity) | \(.InstalledVersion // "N/A") | \(.FixedVersion // "N/A") | \(.Title) |"' >> $GITHUB_STEP_SUMMARY
-            else
-              echo "> ✅ **No vulnerabilities detected in backend dependencies and code.**" >> $GITHUB_STEP_SUMMARY
-            fi
-          else
-            echo "⚠️ Trivy scan did not produce results. Check the Trivy Vulnerability Scan job for details." >> $GITHUB_STEP_SUMMARY
-          fi
+          python3 api/generate_puml_summary.py
