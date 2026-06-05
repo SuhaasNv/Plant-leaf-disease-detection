@@ -17,7 +17,7 @@ if (typeof window !== 'undefined' && window.FileReader) {
       configurable: true
     });
     if (this.onloadend) {
-      this.onloadend();
+      this.onloadend(new ProgressEvent('loadend') as unknown as ProgressEvent<FileReader>);
     }
   };
 }
@@ -121,7 +121,7 @@ vi.mock('framer-motion', async (importOriginal) => {
     motion: {
       create: (Component: React.ElementType) => {
         return ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => {
-          const Tag = Component || 'div';
+          const Tag = (Component || 'div') as React.ComponentType<{ children?: React.ReactNode }>;
           return <Tag {...props}>{children}</Tag>;
         };
       },
