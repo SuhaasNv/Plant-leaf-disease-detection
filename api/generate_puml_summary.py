@@ -350,8 +350,8 @@ def main():
                         zap_alerts["LOW"] += 1
                     elif risk == "0":
                         zap_alerts["INFORMATIONAL"] += 1
-        except:
-            pass
+        except (IOError, json.JSONDecodeError, KeyError, IndexError):
+            zap_found = False
 
     lines.append("```")
     lines.append("DAST OWASP ZAP Baseline Scan Result")
@@ -386,8 +386,8 @@ def main():
             with open("gitleaks-report.json", "r") as f:
                 gitleaks_data = json.load(f)
                 gitleaks_leaks = len(gitleaks_data)
-    except:
-        pass
+    except (IOError, json.JSONDecodeError):
+        gitleaks_leaks = 0
 
     lines.append("Scanning repository commits for hardcoded secrets...")
     lines.append(f"leaks found: {gitleaks_leaks}")
