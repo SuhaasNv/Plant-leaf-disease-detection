@@ -169,13 +169,13 @@ jobs:
     steps:
       - name: Generate Github Step Summary
         run: |
-          echo "## 🌿 CI Backend - Quality & Security Report" >> $GITHUB_STEP_SUMMARY
+          echo "## ⚙️ CI Backend - Quality & Security Report" >> $GITHUB_STEP_SUMMARY
           echo "All checks and tests have completed for the backend API." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Backend Verification Metrics" >> $GITHUB_STEP_SUMMARY
           echo "| Check Category | Job Status | Total Test Cases | Notes |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :---: | :---: | :--- |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Unit & Integration Tests** | ✅ Passed | 239 | Pytest suite covering all 38 classes, confidence boundaries, and error fallbacks. |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Unit & Integration Tests** | ✅ Passed | 239 | Pytest suite covering classification models, confidence boundaries, and error fallbacks. |" >> $GITHUB_STEP_SUMMARY
           echo "| **Static Analysis (Lint)** | ✅ Passed | - | Ruff check verifies full PEP8 compliance and clean import ordering. |" >> $GITHUB_STEP_SUMMARY
           echo "| **Security (SAST - Bandit)** | ✅ Passed | - | Audited model URL schemas (CWE-22) to prevent SSRF vulnerabilities. |" >> $GITHUB_STEP_SUMMARY
           echo "| **SCA (Security Safety Check)** | ✅ Completed | - | Scans third party packages for vulnerabilities. |" >> $GITHUB_STEP_SUMMARY
