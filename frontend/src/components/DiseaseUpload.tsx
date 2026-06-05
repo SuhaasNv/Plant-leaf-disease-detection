@@ -243,7 +243,6 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: Predict
       }
     } catch (e) {
       clearTimeout(timeout);
-      clearInterval(intervalRef.current!);
 
       let msg = "Something went wrong.";
       if (e instanceof Error) {
@@ -256,6 +255,7 @@ export function DiseaseUpload({ onDisease }: { onDisease?: (predictions: Predict
       }
 
       if (animDoneRef.current) {
+        clearInterval(intervalRef.current!);
         revealResult(null, msg);
       } else {
         pendingErrRef.current = msg;
