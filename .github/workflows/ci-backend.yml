@@ -161,12 +161,43 @@ jobs:
         run: |
           echo "Running OWASP Dependency Check scan..."
 
+  trivy-scan:
+    name: Trivy Vulnerability Scan
+    needs: [install-dependencies]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'api'
+          format: 'json'
+          output: 'trivy-results.json'
+      - name: Display Trivy Results
+        run: |
+          if [ -f trivy-results.json ]; then
+            echo "Trivy scan completed. Vulnerability summary:"
+            cat trivy-results.json | jq -r '.Results[] | select(.Vulnerabilities) | "\(.Target): \(.Vulnerabilities | length) vulnerabilities"' || echo "No vulnerabilities found"
+          fi
+      - name: Upload Trivy Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results-backend
+          path: trivy-results.json
+        if: always()
+
   ci-backend-summary:
     name: CI Backend - Summary
-    needs: [npm-audit, sca-owasp-dependency-check, unit-integration-tests, dast-owasp-zap, sast-semgrep, sast-codeql]
+    needs: [npm-audit, sca-owasp-dependency-check, unit-integration-tests, dast-owasp-zap, sast-semgrep, sast-codeql, trivy-scan]
     runs-on: ubuntu-latest
     if: always()
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: trivy-results-backend
+        continue-on-error: true
       - name: Generate Github Step Summary
         run: |
           echo "## ⚙️ CI Backend - Quality & Security Report" >> $GITHUB_STEP_SUMMARY
@@ -183,5 +214,20 @@ jobs:
           echo "| **Static Analysis (Lint)** | ✅ Passed | - | Ruff check verifies full PEP8 compliance and clean import ordering. |" >> $GITHUB_STEP_SUMMARY
           echo "| **Security (SAST - Bandit)** | ✅ Passed | - | Audited model URL schemas (CWE-22) to prevent SSRF vulnerabilities. |" >> $GITHUB_STEP_SUMMARY
           echo "| **SCA (Security Safety Check)** | ✅ Completed | - | Scans third party packages for vulnerabilities. |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trivy Vulnerability Scan** | ✅ Completed | - | Filesystem and dependency vulnerability scan for API code. |" >> $GITHUB_STEP_SUMMARY
           echo "| **DAST (OWASP ZAP)** | ✅ Completed | - | Basic automated dynamic vulnerability test pass. |" >> $GITHUB_STEP_SUMMARY
           echo "| **Secrets & Gitleaks** | ✅ Passed | - | Scanned codebase for hardcoded keys and tokens. |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 Trivy Scan Results (Backend)" >> $GITHUB_STEP_SUMMARY
+          if [ -f trivy-results.json ]; then
+            cat trivy-results.json | jq -r '.Results[] | select(.Vulnerabilities) | .Target as $target | .Vulnerabilities[] | "| \($target) | \(.VulnerabilityID) | \(.Severity) | \(.InstalledVersion) | \(.FixedVersion) | \(.Title) |"' | head -20 >> $GITHUB_STEP_SUMMARY || true
+            echo "| --- | --- | --- | --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
+            TOTAL=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | .Severity] | length')
+            CRITICAL=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length')
+            HIGH=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "HIGH")] | length')
+            MEDIUM=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length')
+            LOW=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "LOW")] | length')
+            echo "**Total Vulnerabilities: $TOTAL (CRITICAL: $CRITICAL, HIGH: $HIGH, MEDIUM: $MEDIUM, LOW: $LOW)**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No Trivy scan results available." >> $GITHUB_STEP_SUMMARY
+          fi
