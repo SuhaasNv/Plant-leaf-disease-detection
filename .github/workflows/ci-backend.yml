@@ -218,16 +218,25 @@ jobs:
           echo "| **DAST (OWASP ZAP)** | ✅ Completed | - | Basic automated dynamic vulnerability test pass. |" >> $GITHUB_STEP_SUMMARY
           echo "| **Secrets & Gitleaks** | ✅ Passed | - | Scanned codebase for hardcoded keys and tokens. |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔍 Trivy Scan Results (Backend)" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 Trivy Vulnerability Scan (Backend)" >> $GITHUB_STEP_SUMMARY
           if [ -f trivy-results.json ]; then
-            cat trivy-results.json | jq -r '.Results[] | select(.Vulnerabilities) | .Target as $target | .Vulnerabilities[] | "| \($target) | \(.VulnerabilityID) | \(.Severity) | \(.InstalledVersion) | \(.FixedVersion) | \(.Title) |"' | head -20 >> $GITHUB_STEP_SUMMARY || true
-            echo "| --- | --- | --- | --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
             TOTAL=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | .Severity] | length')
             CRITICAL=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length')
             HIGH=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "HIGH")] | length')
             MEDIUM=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length')
             LOW=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "LOW")] | length')
-            echo "**Total Vulnerabilities: $TOTAL (CRITICAL: $CRITICAL, HIGH: $HIGH, MEDIUM: $MEDIUM, LOW: $LOW)**" >> $GITHUB_STEP_SUMMARY
+            UNKNOWN=$(cat trivy-results.json | jq '[.Results[] | .Vulnerabilities[]? | select(.Severity == "UNKNOWN")] | length')
+
+            echo "**Total: $TOTAL (UNKNOWN: $UNKNOWN, LOW: $LOW, MEDIUM: $MEDIUM, HIGH: $HIGH, CRITICAL: $CRITICAL)**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            if [ $TOTAL -gt 0 ]; then
+              echo "| Library | Vulnerability ID | Severity | Installed Version | Fixed Version | Title |" >> $GITHUB_STEP_SUMMARY
+              echo "| :--- | :--- | :--- | :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+              cat trivy-results.json | jq -r '.Results[] | select(.Vulnerabilities) | .Target as $target | .Vulnerabilities[] | "| \($target) | [\(.VulnerabilityID)](https://nvd.nist.gov/vuln/detail/\(.VulnerabilityID)) | \(.Severity) | \(.InstalledVersion // "N/A") | \(.FixedVersion // "N/A") | \(.Title) |"' >> $GITHUB_STEP_SUMMARY
+            else
+              echo "> ✅ **No vulnerabilities detected in backend dependencies and code.**" >> $GITHUB_STEP_SUMMARY
+            fi
           else
-            echo "No Trivy scan results available." >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Trivy scan did not produce results. Check the Trivy Vulnerability Scan job for details." >> $GITHUB_STEP_SUMMARY
           fi
