@@ -34,10 +34,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config  # noqa: E402
 
 # Local dev: model at project root, Prev Models/, or api/. Docker: often gets Git LFS pointer (invalid).
-# Set MODEL_URL to download the real model at startup when the bundled file is missing or invalid.
+# Railway: model is uploaded directly to the attached volume (MODEL_VOLUME_PATH), bypassing
+# both the LFS pointer issue and the unreliable Google Drive download at startup.
+# Set MODEL_URL to download the real model at startup when none of these are present.
 _base = Path(__file__).resolve().parent
 _root = _base.parent
 _candidates = [
+    Path(os.getenv("MODEL_VOLUME_PATH", "/data/trained_plant_disease_model.h5")),
     _root / "plant_disease_v2.keras",
     _root / "trained_plant_disease_model.h5",
     _root / "Prev Models" / "trained_plant_disease_model.h5",
