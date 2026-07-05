@@ -6,7 +6,7 @@ A production-ready deep learning system for identifying plant diseases from leaf
 
 ### 🚀 Live Demo
 
-**[LeafScan AI →](https://plant-leaf-disease-detection-two.vercel.app/)** — Upload a leaf image and get an AI diagnosis in under a second.
+**[LeafScan AI →](https://plant-leaf-detection-production.up.railway.app/)** — Upload a leaf image and get an AI diagnosis in under a second.
 
 ---
 
@@ -76,7 +76,7 @@ After a leaf image is analyzed and a disease is detected, you can open the **Pla
 | **Server-side** | Chat goes through `/api/chat` proxy — API keys stay on the server |
 | **OpenAI fallback** | If Gemini fails or isn't configured, falls back to OpenAI GPT-4o-mini |
 
-**Setup:** Set `GEMINI_API_KEY` (primary) and/or `OPENAI_API_KEY` (fallback) in your Vercel and Railway environment variables to enable the assistant.
+**Setup:** Set `GEMINI_API_KEY` (primary) and/or `OPENAI_API_KEY` (fallback) on both Railway services (frontend and backend) to enable the assistant.
 
 ---
 
@@ -99,7 +99,7 @@ After a leaf image is analyzed and a disease is detected, you can open the **Pla
                                                    │
   USER FLOW (online)                               │ deploy
   ┌─────────────┐      ┌─────────────┐      ┌─────▼─────┐      ┌─────────────┐
-  │   USER      │ ───► │   VERCEL    │ ───► │  RAILWAY  │ ───► │   RESULT    │
+  │   USER      │ ───► │  RAILWAY    │ ───► │  RAILWAY  │ ───► │   RESULT    │
   │ Upload leaf │      │  Next.js     │      │  FastAPI   │      │ Disease +   │
   │   image     │      │ /api/predict │      │ + CNN     │      │ Confidence  │
   └─────────────┘      └─────────────┘      └───────────┘      └─────────────┘
@@ -112,12 +112,12 @@ Data Pipeline → Training (Notebook) → Saved Model (.h5)
                                           │
                     ┌─────────────────────┴─────────────────────┐
                     ▼                                           ▼
-         Vercel (Next.js) ──POST /api/predict──► Railway (FastAPI)
-         LeafScan AI UI    (server proxy)         Docker + model
+         Railway (Next.js) ──POST /api/predict──► Railway (FastAPI)
+         LeafScan AI UI     (server proxy)         Docker + model
 ```
 
-- **Frontend:** Next.js calls `/api/predict` (server-side proxy). API key and backend URL never reach the browser.
-- **Backend:** FastAPI on Railway handles `/predict` with rate limiting, API key auth, and input validation.
+- **Frontend:** Next.js calls `/api/predict` (server-side proxy). API key and backend URL never reach the browser. Deployed as its own Railway service (Nixpacks build, root directory `frontend`).
+- **Backend:** FastAPI on Railway handles `/predict` with rate limiting, API key auth, and input validation. Deployed from the repo-root `Dockerfile`.
 
 ---
 
@@ -230,14 +230,14 @@ Training uses the canonical pipeline (`config.py` + `data_pipeline.py`) as the s
 
 | Measure | Implementation |
 |---------|----------------|
-| **Rate limiting** | 10 requests/min per IP (configurable via `RATE_LIMIT` env). Applied at both Vercel proxy and Railway backend. |
+| **Rate limiting** | 10 requests/min per IP (configurable via `RATE_LIMIT` env). Applied at both the Next.js proxy and the FastAPI backend. |
 | **Input validation** | File size ≤10 MB, magic-byte image type check (JPEG/PNG/WebP/GIF), max dimensions 4096×4096 px. Non-leaf colour heuristic + low-confidence guard before inference. |
 | **API key handling** | Backend requires `X-API-Key` header when `API_KEY` env is set on Railway. Frontend uses server-side proxy (`/api/predict`) — API key and backend URL never exposed to the browser. |
 
-**Env vars (production):**
+**Env vars (production, both on Railway):**
 
-- **Railway:** `API_KEY`, `MODEL_URL`, `CORS_ORIGINS`, `GEMINI_API_KEY` (optional, primary chat), `OPENAI_API_KEY` (optional, fallback chat)
-- **Vercel:** `API_URL` (Railway URL), `API_KEY` (same as Railway), `GEMINI_API_KEY` (optional), `OPENAI_API_KEY` (optional, fallback) — no `NEXT_PUBLIC_` prefix
+- **Backend service:** `API_KEY`, `MODEL_URL`, `CORS_ORIGINS`, `GEMINI_API_KEY` (optional, primary chat), `OPENAI_API_KEY` (optional, fallback chat)
+- **Frontend service:** `API_URL` (backend's Railway URL), `API_KEY` (same as backend), `GEMINI_API_KEY` (optional), `OPENAI_API_KEY` (optional, fallback) — no `NEXT_PUBLIC_` prefix
 
 ---
 
@@ -247,17 +247,21 @@ Training uses the canonical pipeline (`config.py` + `data_pipeline.py`) as the s
 
 - Lint (Ruff) + smoke test on push/PR. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
-### Railway + Vercel
+### Railway (both services)
 
-**Backend (Railway):**
+The whole app runs on Railway as two services in one project, both deployed from the same GitHub repo.
 
-- Deploy from GitHub. Set `MODEL_URL` (direct download for .h5), `API_KEY`, `CORS_ORIGINS`
+**Backend service:**
+
+- Root directory: repo root (builds via the top-level `Dockerfile`)
+- Env vars: `MODEL_URL` (direct download for .h5), `API_KEY`, `CORS_ORIGINS` (set to the frontend's Railway domain)
 - Generate public domain in Settings → Networking
 
-**Frontend (Vercel):**
+**Frontend service:**
 
-- Root directory: `frontend`
-- Env vars: `API_URL` = Railway URL, `API_KEY` = same secret (server-side only), `GEMINI_API_KEY` = for Plant Assistant chat (optional)
+- Root directory: `frontend` (Railway auto-detects Next.js via Nixpacks — no Dockerfile needed)
+- Env vars: `API_URL` = backend's Railway URL, `API_KEY` = same secret (server-side only), `GEMINI_API_KEY` / `OPENAI_API_KEY` = for Plant Assistant chat (optional)
+- Generate public domain in Settings → Networking
 
 ---
 

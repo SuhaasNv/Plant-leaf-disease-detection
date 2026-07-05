@@ -3,12 +3,12 @@
  *
  * Why a proxy?
  *  - API_KEY and API_URL never appear in the browser bundle (no NEXT_PUBLIC_ prefix).
- *  - We can enforce a second layer of rate limiting close to the user (Vercel edge).
- *  - Frontend always calls /api/predict — completely decoupled from the Railway URL.
+ *  - We can enforce a second layer of rate limiting close to the user.
+ *  - Frontend always calls /api/predict — completely decoupled from the backend URL.
  *
- * Required env vars (Vercel dashboard → Settings → Environment Variables):
+ * Required env vars (Railway dashboard → frontend service → Variables):
  *   API_URL   e.g. https://plant-leaf-disease-detection-production-7a13.up.railway.app
- *   API_KEY   must match the API_KEY set on Railway
+ *   API_KEY   must match the API_KEY set on the backend Railway service
  *
  * Optional:
  *   PROXY_RATE_LIMIT_RPM  requests per minute per IP (default 10)
@@ -20,8 +20,8 @@ const API_URL = (process.env.API_URL ?? "").replace(/\/+$/, "");
 const API_KEY = process.env.API_KEY ?? "";
 
 // ── Simple in-memory rate limiter ─────────────────────────────────────────────
-// Resets on each Vercel cold-start, which is acceptable for a portfolio project.
-// For production, replace with Vercel KV or Upstash Redis.
+// Resets on each container restart, which is acceptable for a portfolio project.
+// For production, replace with a shared store like Upstash Redis.
 const RPM = parseInt(process.env.PROXY_RATE_LIMIT_RPM ?? "10", 10);
 const _windowMs = 60_000;
 const _hits = new Map<string, { count: number; resetAt: number }>();
